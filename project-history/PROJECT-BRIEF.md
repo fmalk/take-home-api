@@ -103,7 +103,7 @@ explicitly *out of scope* — see "Out of scope" below.
 
 - **One service, many scenarios.** Each scenario is a self-contained API mounted
   under its own namespace, e.g. `/api/travel/v1`, `/api/ecommerce/v2`. Adding a
-  scenario means adding a new namespaced module, not a new service.
+  scenario means adding a new namespace module, not a new service.
 - **All TypeScript.** A plain **vanilla Node.js** HTTP service — no heavy
   framework required to start.
 - **Run via a CLI.** The service is started from a simple command-line entry
