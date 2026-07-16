@@ -34,7 +34,7 @@
         "@fastify/cors": "^9.0.0",
         "@fastify/swagger": "^8.15.0",
         "@fastify/swagger-ui": "^4.1.0",
-        "fastify": "^4.27.0",
+        "fastify": "^5.10.0",
         "node-cache": "^5.1.2",
         "pino": "^9.0.0",
         "sql.js": "^1.8.0"
@@ -45,7 +45,7 @@
         "@types/sql.js": "^1.4.11",
         "@typescript-eslint/eslint-plugin": "^8.0.0",
         "@typescript-eslint/parser": "^8.0.0",
-        "esbuild": "^0.23.0",
+        "esbuild": "^0.28.1",
         "eslint": "^9.0.0",
         "mintlify": "^4.2.0",
         "prettier": "^3.0.0",
