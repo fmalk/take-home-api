@@ -15,7 +15,7 @@
         "lint:fix": "eslint src --ext .ts --fix",
         "format": "prettier --write src",
         "format:check": "prettier --check src",
-        "docs": "mintlify dev"
+        "docs": "cd docs && mintlify dev"
     },
     "keywords": [
         "api",
