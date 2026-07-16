@@ -44,3 +44,5 @@ lerna-debug.log*
 
 # Ignore some Claude files
 .claude/*
+CLAUDE.md
+.mcp.json
