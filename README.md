@@ -1,6 +1,6 @@
 # take-home-api
 
-A ready-made, well-designed REST API you **consume**, not build.
+A ready-made, well-designed REST API mimicking many **real world scenarios**.
 
 Each scenario models a realistic business domain — e-commerce, airline booking,
 food delivery, banking ledger, show tickets, scheduling appointments — fully
@@ -15,6 +15,12 @@ flips that: the API already exists, fully working, and you learn by *using* it.
 That's a closer match to a lot of real engineering work — consuming an
 API you didn't design, understanding its data model, and building something on
 top of it.
+
+## Why #2
+
+At an old job, I used this concept for junior hiring and training: show them a very close to real API with our customer scenarios, how would they use it? What modifications would you do?
+
+We would use those as input to Take Home Coding challenges. We were a mobile-focused company, so consuming API was essential to the job, for everyone. Exposing developers to it was very rewarding.
 
 ## What you can do with it
 
@@ -66,6 +72,3 @@ logs as a first-class feature.
 Evaluation, scoring, reporting, a UI, and any hosted/SaaS offering are
 explicitly out of scope here — those belong to a separate downstream project
 that consumes this API and its logs.
-
-See `project-history/PROJECT-BRIEF.md` for
-the full design rationale.
