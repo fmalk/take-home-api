@@ -1,4 +1,4 @@
-import type { Scenario } from '../types/index.js';
+import type { Scenario } from '../types';
 
 const registeredScenarios: Scenario[] = [];
 

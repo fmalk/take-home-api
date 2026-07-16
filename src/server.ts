@@ -3,10 +3,10 @@ import fastifyCors from '@fastify/cors';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import { randomUUID } from 'crypto';
-import { getLogger, logFlow, logRequest } from './core/logger.js';
-import { ApiError } from './types/index.js';
-import { getRegisteredScenarios } from './core/scenario.js';
-import { clearCache } from './core/cache.js';
+import { getLogger, logFlow, logRequest } from './core/logger';
+import { ApiError } from './types';
+import { getRegisteredScenarios } from './core/scenario';
+import { clearCache } from './core/cache';
 
 declare module 'fastify' {
     interface FastifyRequest {
@@ -31,14 +31,14 @@ export async function buildServer(): Promise<FastifyInstance> {
         openapi: {
             info: {
                 title: 'take-home-api',
-                description: 'A ready-made, well-designed REST API you consume, not build.',
-                version: '0.1.0',
+                description: 'A ready-made, well-designed REST API mimicking many real world scenarios',
+                version: '0.1.0', // TODO: load from package.json
             },
         },
     });
 
     await app.register(fastifySwaggerUi, {
-        routePrefix: '/docs',
+        routePrefix: '/swagger',
     });
 
     app.addHook('onRequest', async (request: FastifyRequest) => {
@@ -58,17 +58,6 @@ export async function buildServer(): Promise<FastifyInstance> {
 
     app.get('/health', async () => {
         return { status: 'ok' };
-    });
-
-    app.post('/admin/reset', async (request) => {
-        clearCache();
-        logFlow({
-            reqId: request.id,
-            flow: 'admin',
-            step: 'reset',
-            data: { timestamp: new Date().toISOString() },
-        });
-        return { status: 'reset' };
     });
 
     const scenarios = getRegisteredScenarios();

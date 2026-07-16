@@ -33,22 +33,3 @@ export interface Scenario {
     register(app: FastifyInstance): Promise<void>;
     openapi(): Record<string, unknown>;
 }
-
-export interface FlightSearchParams {
-    from: string;
-    to: string;
-    date: string;
-}
-
-export interface Flight {
-    id: string;
-    from: string;
-    to: string;
-    date: string;
-    departure: string;
-    arrival: string;
-    airline: string;
-    flightNumber: string;
-    price: number;
-    available: number;
-}
