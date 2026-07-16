@@ -1,0 +1,24 @@
+{
+    "$schema": "https://mintlify.com/docs.json",
+    "name": "Take-Home API",
+    "basePath": "/docs",
+    "theme": "maple",
+    "colors": {
+        "primary": "#16A34A",
+        "light": "#4ADE80",
+        "dark": "#15803D"
+    },
+    "navigation": {
+        "tabs": [
+            {
+                "tab": "Documentation",
+                "groups": [
+                    {
+                        "group": "Get Started",
+                        "pages": ["index"]
+                    }
+                ]
+            }
+        ]
+    }
+}
