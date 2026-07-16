@@ -1,0 +1,49 @@
+{
+    "name": "take-home-api",
+    "version": "0.1.0",
+    "description": "A ready-made, well-designed REST API you consume, not build.",
+    "main": "dist/index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "start": "node dist/index.js",
+        "build": "esbuild src/index.ts --bundle --platform=node --target=ES2022 --outfile=dist/index.js --sourcemap",
+        "preview": "npm run build && npm start",
+        "clean": "rm -rf dist",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --ext .ts",
+        "lint:fix": "eslint src --ext .ts --fix",
+        "format": "prettier --write src",
+        "format:check": "prettier --check src"
+    },
+    "keywords": [
+        "api",
+        "rest",
+        "learning",
+        "interview"
+    ],
+    "author": "Fernando Piancastelli",
+    "license": "MIT",
+    "dependencies": {
+        "@faker-js/faker": "^9.0.0",
+        "@fastify/cors": "^9.0.0",
+        "@fastify/swagger": "^8.15.0",
+        "@fastify/swagger-ui": "^4.1.0",
+        "fastify": "^4.27.0",
+        "node-cache": "^5.1.2",
+        "pino": "^9.0.0",
+        "sql.js": "^1.8.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^20.0.0",
+        "@types/sql.js": "^1.4.11",
+        "@typescript-eslint/eslint-plugin": "^8.0.0",
+        "@typescript-eslint/parser": "^8.0.0",
+        "esbuild": "^0.23.0",
+        "eslint": "^9.0.0",
+        "prettier": "^3.0.0",
+        "tsx": "^4.0.0",
+        "typescript": "^5.0.0"
+    }
+}
