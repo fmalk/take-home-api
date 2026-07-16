@@ -44,5 +44,6 @@ lerna-debug.log*
 
 # Ignore some Claude files
 .claude/*
+nimbalyst-local/*
 CLAUDE.md
 .mcp.json
