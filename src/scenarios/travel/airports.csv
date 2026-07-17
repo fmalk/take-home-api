@@ -1,17 +1,17 @@
 ﻿iata,icao,name,city,country,country_code,passengers_monthly,lat,lng,utc_offset,distance_hub
 ATL,KATL,Hartsfield Jackson Atlanta International Airport,Atlanta,United States of America,US,108.1,33.6367,-84.428101,-5,1
 DXB,OMDB,Dubai International Airport,Dubai,United Arab Emirates,AE,92.3,25.2527999878,55.3643989563,4,1
-DFW,KDFW,Dallas Fort Worth International Airport,Dallas-Fort Worth,United States of America,US,87.8,32.896801,-97.038002,-6,1
+DFW,KDFW,Dallas Fort Worth International Airport,Dallas-Fort Worth,United States of America,US,87.8,32.896801,-97.038002,-6,0
 HND,RJTT,Tokyo Haneda International Airport,Tokyo,Japan,JP,85,35.552299,139.779999,9,1
 LHR,EGLL,London Heathrow Airport,London,England,GB,83.9,51.4706,-0.461941,0,0
 DEN,KDEN,Denver International Airport,Denver,United States of America,US,82.4,39.861698150635,-104.672996521,-7,0
 IST,LTFM,İstanbul Airport,"Arnavutköy, Istanbul",Turkey,TR,80.1,41.261297,28.741951,3,1
-ORD,KORD,Chicago O'Hare International Airport,Chicago,United States of America,US,80,41.9786,-87.9048,-6,1
+ORD,KORD,Chicago O'Hare International Airport,Chicago,United States of America,US,80,41.9786,-87.9048,-6,0
 DEL,VIDP,Indira Gandhi International Airport,New Delhi,India,IN,77.8,28.55563,77.09519,5.5,1
 PVG,ZSPD,Shanghai Pudong International Airport,Shanghai (Pudong),China,CN,76.8,31.1434,121.805,8,1
 LAX,KLAX,Los Angeles International Airport,Los Angeles,United States of America,US,76.6,33.942501,-118.407997,-8,1
 CAN,ZGGG,Guangzhou Baiyun International Airport,Guangzhou (Huadu),China,CN,76.4,23.392401,113.299004,8,0
-ICN,RKSI,Incheon International Airport,Seoul,South Korea,KR,71.2,37.469101,126.450996,9,1
+ICN,RKSI,Incheon International Airport,Seoul,South Korea,KR,71.2,37.469101,126.450996,9,0
 CDG,LFPG,Charles de Gaulle International Airport,"Paris (Roissy-en-France, Val-d'Oise)",France,FR,70.3,49.012798,2.55,1,1
 SIN,WSSS,Singapore Changi Airport,Singapore,Singapore,SG,67.7,1.35019,103.994003,8,0
 PEK,ZBAA,Beijing Capital International Airport,Beijing,China,CN,67.4,40.0801010131836,116.584999084473,8,0
@@ -56,7 +56,7 @@ SVO,UUEE,Sheremetyevo International Airport,Moscow,Russia,RU,43,55.972599,37.414
 BLR,VOBL,Kempegowda International Airport Bengaluru,Bangaluru,India,IN,41.9,13.1979,77.706299,5.5,0
 MUC,EDDM,Munich Airport,Munich,Germany,DE,41.6,48.353802,11.7861,1,0
 SAW,LTFJ,Istanbul Sabiha Gökçen International Airport,"Pendik, Istanbul",Turkey,TR,41.4,40.898602,29.3092,3,0
-SYD,YSSY,Sydney Kingsford Smith International Airport,Sydney (Mascot),Australia,AU,41.4,-33.946098,151.177002,10,0
+SYD,YSSY,Sydney Kingsford Smith International Airport,Sydney (Mascot),Australia,AU,41.4,-33.946098,151.177002,10,1
 SGN,VVTS,Tan Son Nhat International Airport,Ho Chi Minh City,Vietnam,VN,40,10.8188,106.652,7,0
 NRT,RJAA,Narita International Airport,Narita,Japan,JP,39.8,35.764702,140.386002,9,0
 AYT,LTAI,Antalya International Airport,Antalya,Turkey,TR,38.3,36.898701,30.800501,3,0
@@ -66,7 +66,7 @@ RUH,OERK,King Khalid International Airport,Riyadh,Saudi Arabia,SA,37,24.9576,46.
 FLL,KFLL,Fort Lauderdale Hollywood International Airport,Fort Lauderdale,United States of America,US,35.2,26.072599,-80.152702,-5,0
 MEL,YMML,Melbourne Airport,Melbourne,Australia,AU,35.1,-37.661548,144.836432,10,0
 CGK,WIII,Soekarno-Hatta International Airport,Jakarta,Indonesia,ID,35,-6.12557,106.655998,7,0
-LIS,LPPT,Lisbon Humberto Delgado Airport,Lisbon,Portugal,PT,35,38.7813,-9.13592,0,0
+LIS,LPPT,Lisbon Humberto Delgado Airport,Lisbon,Portugal,PT,35,38.7813,-9.13592,0,1
 LGA,KLGA,LaGuardia Airport,New York,United States of America,US,33.5,40.777199,-73.872597,-5,0
 PMI,LEPA,Palma de Mallorca Airport,Palma de Mallorca,Spain,ES,33.3,39.551701,2.73881,1,0
 ORY,LFPO,Paris-Orly Airport,"Paris (Orly, Val-de-Marne)",France,FR,33.1,48.72333,2.37944,1,0
@@ -463,7 +463,7 @@ NAG,VANP,Dr. Babasaheb Ambedkar International Airport,Nagpur,India,IN,2.9,21.092
 GUA,MGGT,La Aurora Airport,Guatemala City,Guatemala,GT,2.7,14.5833,-90.527496,-6,0
 PDL,LPPD,João Paulo II Airport,Ponta Delgada,Portugal,PT,2.7,37.7411994934,-25.6979007721,-1,0
 TOS,ENTC,"Tromsø Airport, Langnes",Tromsø,Norway,NO,2.7,69.683296,18.9189,1,0
-DSS,GOBD,Blaise Diagne International Airport,Dakar,Senegal,SN,2.6,14.670878,-17.072829,0,1
+DSS,GOBD,Blaise Diagne International Airport,Dakar,Senegal,SN,2.6,14.670878,-17.072829,0,0
 RUN,FMEE,Roland Garros Airport,Sainte-Marie,Reunion,RE,2.6,-20.890087,55.518894,4,0
 PWM,KPWM,Portland International Jetport,Portland,United States of America,US,2.4,43.646198,-70.309303,-5,0
 TNG,GMTT,Tangier Ibn Battuta Airport,Tangier,Morocco,MA,2.4,35.731741,-5.921459,0,0

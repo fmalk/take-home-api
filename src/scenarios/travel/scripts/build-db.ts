@@ -19,6 +19,7 @@ interface AirportRow {
     lat: number;
     lng: number;
     utcOffset: number;
+    distanceHub: boolean;
 }
 
 interface AirlineRow {
@@ -27,6 +28,9 @@ interface AirlineRow {
     airline: string;
     country: string;
     countryCode: string;
+    lowCost: boolean;
+    firstClass: boolean;
+    businessClass: boolean;
 }
 
 // Minimal RFC4180-ish CSV parser: handles quoted fields with embedded commas.
@@ -79,6 +83,7 @@ function parseAirports(filePath: string): AirportRow[] {
         lat: Number(r[7]),
         lng: Number(r[8]),
         utcOffset: Number(r[9]),
+        distanceHub: r[10] === '1',
     }));
 }
 
@@ -90,6 +95,9 @@ function parseAirlines(filePath: string): AirlineRow[] {
         airline: r[2],
         country: r[3],
         countryCode: r[4],
+        lowCost: r[5] === '1',
+        firstClass: r[6] === '1',
+        businessClass: r[7] === '1',
     }));
 }
 
@@ -142,7 +150,8 @@ async function buildDb(): Promise<void> {
             passengers_monthly REAL NOT NULL,
             lat REAL NOT NULL,
             lng REAL NOT NULL,
-            utc_offset REAL NOT NULL
+            utc_offset REAL NOT NULL,
+            distance_hub INTEGER NOT NULL
         );
         CREATE UNIQUE INDEX idx_airports_icao ON airports (icao);
 
@@ -152,7 +161,10 @@ async function buildDb(): Promise<void> {
             name TEXT NOT NULL,
             country TEXT NOT NULL,
             country_code TEXT NOT NULL,
-            is_real INTEGER NOT NULL
+            is_real INTEGER NOT NULL,
+            low_cost INTEGER NOT NULL,
+            first_class INTEGER NOT NULL,
+            business_class INTEGER NOT NULL
         );
         CREATE UNIQUE INDEX idx_airlines_icao ON airlines (icao);
 
@@ -167,8 +179,8 @@ async function buildDb(): Promise<void> {
     `);
 
     const insertAirport = db.prepare(`
-        INSERT INTO airports (iata, icao, name, city, country, country_code, passengers_monthly, lat, lng, utc_offset)
-        VALUES (:iata, :icao, :name, :city, :country, :country_code, :passengers_monthly, :lat, :lng, :utc_offset)
+        INSERT INTO airports (iata, icao, name, city, country, country_code, passengers_monthly, lat, lng, utc_offset, distance_hub)
+        VALUES (:iata, :icao, :name, :city, :country, :country_code, :passengers_monthly, :lat, :lng, :utc_offset, :distance_hub)
     `);
     for (const a of airports) {
         insertAirport.run({
@@ -182,13 +194,14 @@ async function buildDb(): Promise<void> {
             ':lat': a.lat,
             ':lng': a.lng,
             ':utc_offset': a.utcOffset,
+            ':distance_hub': a.distanceHub ? 1 : 0,
         });
     }
     insertAirport.free();
 
     const insertAirline = db.prepare(`
-        INSERT INTO airlines (iata, icao, name, country, country_code, is_real)
-        VALUES (:iata, :icao, :name, :country, :country_code, :is_real)
+        INSERT INTO airlines (iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class)
+        VALUES (:iata, :icao, :name, :country, :country_code, :is_real, :low_cost, :first_class, :business_class)
     `);
     for (const airline of fictionalAirlines) {
         insertAirline.run({
@@ -198,6 +211,9 @@ async function buildDb(): Promise<void> {
             ':country': airline.country,
             ':country_code': airline.countryCode,
             ':is_real': 0,
+            ':low_cost': airline.lowCost ? 1 : 0,
+            ':first_class': airline.firstClass ? 1 : 0,
+            ':business_class': airline.businessClass ? 1 : 0,
         });
     }
     for (const airline of realAirlines) {
@@ -208,6 +224,9 @@ async function buildDb(): Promise<void> {
             ':country': airline.country,
             ':country_code': airline.countryCode,
             ':is_real': 1,
+            ':low_cost': airline.lowCost ? 1 : 0,
+            ':first_class': airline.firstClass ? 1 : 0,
+            ':business_class': airline.businessClass ? 1 : 0,
         });
     }
     insertAirline.free();

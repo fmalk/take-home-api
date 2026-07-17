@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const csvPath = path.join(__dirname, '..', 'src', 'scenarios', 'travel', 'airports.csv');
-const outPath = path.join(__dirname, '..', 'airports-map.html');
+const TRAVEL_DIR = path.join(__dirname, '..');
+const csvPath = path.join(TRAVEL_DIR, 'airports.csv');
+const outPath = path.join(TRAVEL_DIR, 'airports-map.html');
 
 function parseCsv(text) {
     const rows = [];
@@ -51,6 +52,7 @@ let csvText = fs.readFileSync(csvPath, 'utf-8');
 if (csvText.charCodeAt(0) === 0xfeff) {
     csvText = csvText.slice(1);
 }
+
 const rows = parseCsv(csvText);
 const header = rows[0];
 const dataRows = rows.slice(1);
@@ -63,6 +65,7 @@ const idx = {
     country: header.indexOf('country'),
     lat: header.indexOf('lat'),
     lng: header.indexOf('lng'),
+    distanceHub: header.indexOf('distance_hub'),
 };
 
 const airports = dataRows
@@ -75,10 +78,13 @@ const airports = dataRows
         country: r[idx.country],
         lat: parseFloat(r[idx.lat]),
         lng: parseFloat(r[idx.lng]),
+        // Internal-only flag: rendered as a red marker on this map, never exposed via API/DTOs.
+        distanceHub: idx.distanceHub !== -1 && r[idx.distanceHub] === '1',
     }))
     .filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lng));
 
 console.log(`Parsed ${airports.length} airports from ${dataRows.length} data rows`);
+console.log(`  distance hubs: ${airports.filter((a) => a.distanceHub).length}`);
 
 const html = `<!DOCTYPE html>
 <html>
@@ -145,6 +151,13 @@ const html = `<!DOCTYPE html>
             color: #3498db;
             font-weight: 500;
         }
+        .legend-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
         .leaflet-popup-content {
             font-size: 13px;
         }
@@ -168,6 +181,8 @@ const html = `<!DOCTYPE html>
     <div id="stats">
         <div><span class="stat-label">Total Airports:</span> <span class="stat-value" id="airport-count">0</span></div>
         <div><span class="stat-label">Countries:</span> <span class="stat-value" id="country-count">0</span></div>
+        <div><span class="legend-dot" style="background:#3388ff;"></span>Standard</div>
+        <div><span class="legend-dot" style="background:#e74c3c;"></span>Distance hub</div>
     </div>
 
     <script>
@@ -180,12 +195,22 @@ const html = `<!DOCTYPE html>
         const airports = ${JSON.stringify(airports, null, 4)};
 
         const countrySet = new Set();
-        const markers = [];
+
+        const redIcon = new L.Icon({
+            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
 
         airports.forEach(airport => {
-            const marker = L.marker([airport.lat, airport.lng], {
-                title: airport.iata
-            });
+            const markerOptions = { title: airport.iata };
+            if (airport.distanceHub) {
+                markerOptions.icon = redIcon;
+            }
+            const marker = L.marker([airport.lat, airport.lng], markerOptions);
 
             const popupContent = '<div class="popup-title">' + airport.iata + ' - ' + airport.name + '</div>' +
                                  '<div class="popup-detail"><strong>City:</strong> ' + airport.city + '</div>' +
@@ -195,7 +220,6 @@ const html = `<!DOCTYPE html>
 
             marker.bindPopup(popupContent);
             marker.addTo(map);
-            markers.push(marker);
 
             countrySet.add(airport.country);
         });
