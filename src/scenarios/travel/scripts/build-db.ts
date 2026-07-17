@@ -2,14 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { Database, Statement } from 'sql.js';
-import { faker } from '@faker-js/faker';
 import { openDatabase, saveDatabase, dropDatabase } from '../../../core/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRAVEL_DIR = path.resolve(__dirname, '..');
 const DB_NAME = 'travel';
-const MAX_AIRLINES_PER_AIRPORT = 10;
-const MIN_AIRLINES_PER_AIRPORT = 3;
 
 interface AirportRow {
     iata: string;
@@ -96,54 +93,27 @@ function parseAirlines(filePath: string): AirlineRow[] {
     }));
 }
 
-// Deterministic hash so re-running the build produces identical airline assignments.
-function hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = (hash << 5) - hash + char;
-        hash = hash & hash;
-    }
-    return Math.abs(hash);
-}
-
-// Relationship data isn't sourced from anywhere real, so coverage is assumed: bigger
-// airports (by passenger volume) get served by more airlines, scaled between MIN and
-// MAX airlines.
-function airlineCoverageCount(passengersMonthly: number, maxPassengers: number): number {
-    const share = maxPassengers > 0 ? passengersMonthly / maxPassengers : 0;
-    return Math.min(
-        MAX_AIRLINES_PER_AIRPORT,
-        Math.max(MIN_AIRLINES_PER_AIRPORT, Math.round(MIN_AIRLINES_PER_AIRPORT + share * (MAX_AIRLINES_PER_AIRPORT - MIN_AIRLINES_PER_AIRPORT))),
-    );
-}
-
-// Fictional and real airlines are two separate rosters, so coverage is calculated
-// independently for each: every airport gets its own MIN-MAX count of fictional
-// airlines, plus its own MIN-MAX count of real airlines.
-function linkAirportsToRoster(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[], seedSuffix: string): void {
-    const maxPassengers = Math.max(...airports.map((a) => a.passengersMonthly));
-    const rosterIatas = roster.map((a) => a.iata);
-
+// Stage 1 - regional: every airport is served by every airline headquartered in the
+// same country, regardless of MIN/MAX. Fictional and real airlines are two separate
+// rosters, so this is run once per roster.
+function linkRegionalAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
     for (const airport of airports) {
-        faker.seed(hashString(`${airport.iata}:${seedSuffix}`));
+        const regionalAirlines = roster.filter((a) => a.countryCode === airport.countryCode);
 
-        const count = airlineCoverageCount(airport.passengersMonthly, maxPassengers);
-        const servingAirlineIatas = faker.helpers.arrayElements(rosterIatas, count);
-        for (const airlineIata of servingAirlineIatas) {
-            insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airlineIata });
+        for (const airline of regionalAirlines) {
+            insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
         }
     }
 }
 
 function linkAirportsToAirlines(db: Database, airports: AirportRow[], fictionalAirlines: AirlineRow[], realAirlines: AirlineRow[]): void {
     const insertLink = db.prepare(`
-        INSERT INTO airport_airlines (airport_iata, airline_iata)
-        VALUES (:airport_iata, :airline_iata)
+        INSERT INTO airport_airlines (airport_iata, airline_iata, regional)
+        VALUES (:airport_iata, :airline_iata, :regional)
     `);
 
-    linkAirportsToRoster(insertLink, airports, fictionalAirlines, 'fictional');
-    linkAirportsToRoster(insertLink, airports, realAirlines, 'real');
+    linkRegionalAirlines(insertLink, airports, fictionalAirlines);
+    linkRegionalAirlines(insertLink, airports, realAirlines);
 
     insertLink.free();
 }
@@ -189,6 +159,7 @@ async function buildDb(): Promise<void> {
         CREATE TABLE airport_airlines (
             airport_iata TEXT NOT NULL REFERENCES airports (iata),
             airline_iata TEXT NOT NULL REFERENCES airlines (iata),
+            regional INTEGER NOT NULL,
             PRIMARY KEY (airport_iata, airline_iata)
         );
 
@@ -249,7 +220,7 @@ async function buildDb(): Promise<void> {
     console.log(`Built ${dbPath}`);
     console.log(`  airports: ${airports.length}`);
     console.log(`  airlines: ${fictionalAirlines.length} fictional + ${realAirlines.length} real`);
-    console.log(`  airport_airlines: up to ${MAX_AIRLINES_PER_AIRPORT} fictional + ${MAX_AIRLINES_PER_AIRPORT} real airlines per airport`);
+    console.log(`  airport_airlines: regional (same-country) fictional + real airlines per airport`);
 }
 
 buildDb().catch((err) => {
