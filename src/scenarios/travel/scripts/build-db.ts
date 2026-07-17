@@ -71,16 +71,16 @@ function parseCsv(filePath: string): string[][] {
 function parseAirports(filePath: string): AirportRow[] {
     const [, ...rows] = parseCsv(filePath);
     return rows.map((r) => ({
-        iata: r[1],
-        icao: r[2],
-        name: r[3],
-        city: r[4],
-        country: r[5],
-        countryCode: r[6],
-        passengersMonthly: Number(r[7]),
-        lat: Number(r[8]),
-        lng: Number(r[9]),
-        utcOffset: Number(r[10]),
+        iata: r[0],
+        icao: r[1],
+        name: r[2],
+        city: r[3],
+        country: r[4],
+        countryCode: r[5],
+        passengersMonthly: Number(r[6]),
+        lat: Number(r[7]),
+        lng: Number(r[8]),
+        utcOffset: Number(r[9]),
     }));
 }
 
@@ -134,27 +134,19 @@ async function buildDb(): Promise<void> {
         );
         CREATE UNIQUE INDEX idx_airports_icao ON airports (icao);
 
-        CREATE TABLE airlines_fictional (
+        CREATE TABLE airlines (
             iata TEXT PRIMARY KEY,
             icao TEXT NOT NULL,
             name TEXT NOT NULL,
             country TEXT NOT NULL,
-            country_code TEXT NOT NULL
+            country_code TEXT NOT NULL,
+            is_real INTEGER NOT NULL
         );
-        CREATE UNIQUE INDEX idx_airlines_fictional_icao ON airlines_fictional (icao);
-
-        CREATE TABLE airlines_real (
-            iata TEXT PRIMARY KEY,
-            icao TEXT NOT NULL,
-            name TEXT NOT NULL,
-            country TEXT NOT NULL,
-            country_code TEXT NOT NULL
-        );
-        CREATE UNIQUE INDEX idx_airlines_real_icao ON airlines_real (icao);
+        CREATE UNIQUE INDEX idx_airlines_icao ON airlines (icao);
 
         CREATE TABLE airport_airlines (
             airport_iata TEXT NOT NULL REFERENCES airports (iata),
-            airline_iata TEXT NOT NULL REFERENCES airlines_fictional (iata),
+            airline_iata TEXT NOT NULL REFERENCES airlines (iata),
             PRIMARY KEY (airport_iata, airline_iata)
         );
 
@@ -181,35 +173,31 @@ async function buildDb(): Promise<void> {
     }
     insertAirport.free();
 
-    const insertFictionalAirline = db.prepare(`
-        INSERT INTO airlines_fictional (iata, icao, name, country, country_code)
-        VALUES (:iata, :icao, :name, :country, :country_code)
+    const insertAirline = db.prepare(`
+        INSERT INTO airlines (iata, icao, name, country, country_code, is_real)
+        VALUES (:iata, :icao, :name, :country, :country_code, :is_real)
     `);
     for (const airline of fictionalAirlines) {
-        insertFictionalAirline.run({
+        insertAirline.run({
             ':iata': airline.iata,
             ':icao': airline.icao,
             ':name': airline.airline,
             ':country': airline.country,
             ':country_code': airline.countryCode,
+            ':is_real': 0,
         });
     }
-    insertFictionalAirline.free();
-
-    const insertRealAirline = db.prepare(`
-        INSERT INTO airlines_real (iata, icao, name, country, country_code)
-        VALUES (:iata, :icao, :name, :country, :country_code)
-    `);
     for (const airline of realAirlines) {
-        insertRealAirline.run({
+        insertAirline.run({
             ':iata': airline.iata,
             ':icao': airline.icao,
             ':name': airline.airline,
             ':country': airline.country,
             ':country_code': airline.countryCode,
+            ':is_real': 1,
         });
     }
-    insertRealAirline.free();
+    insertAirline.free();
 
     // Airline coverage: relationship data isn't sourced from anywhere real, so it's
     // assumed. Bigger airports (by passenger volume) get served by more airlines,

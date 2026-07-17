@@ -28,9 +28,8 @@ In advanced scenarios, look out for:
 into `travel.sqlite` (checked in, alongside the CSVs it's derived from). Tables:
 
 - `airports` — one row per airport CSV row, keyed by IATA code (ICAO is unique-indexed).
-- `airlines_fictional` / `airlines_real` — separate tables, each keyed by IATA code
-  (ICAO unique-indexed). Split in two because 13 IATA codes collide between the
-  fictional and real rosters, so a single shared table can't use IATA as its key.
+- `airlines` — both fictional and real rosters in one table, keyed by IATA code
+  (ICAO unique-indexed), flagged by `is_real`.
 - `airport_airlines` — assumed airline coverage per airport (not sourced from anywhere
   real). Each airport is linked to 3-10 fictional airlines (the project default roster),
   with busier airports (by `passengers_monthly`) getting more coverage. Assignment is
