@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import type { Database } from 'sql.js';
 import { faker } from '@faker-js/faker';
 import { openDatabase, saveDatabase, dropDatabase } from '../../../core/db.js';
 
@@ -106,6 +107,34 @@ function hashString(str: string): number {
     return Math.abs(hash);
 }
 
+// Airline coverage: relationship data isn't sourced from anywhere real, so it's
+// assumed. Bigger airports (by passenger volume) get served by more airlines,
+// scaled between MIN and MAX, using the default (fictional) airline roster.
+function linkAirportsToAirlines(db: Database, airports: AirportRow[], fictionalAirlines: AirlineRow[]): void {
+    const maxPassengers = Math.max(...airports.map((a) => a.passengersMonthly));
+    const fictionalAirlineIatas = fictionalAirlines.map((a) => a.iata);
+
+    const insertLink = db.prepare(`
+        INSERT INTO airport_airlines (airport_iata, airline_iata)
+        VALUES (:airport_iata, :airline_iata)
+    `);
+    for (const airport of airports) {
+        faker.seed(hashString(airport.iata));
+
+        const share = maxPassengers > 0 ? airport.passengersMonthly / maxPassengers : 0;
+        const count = Math.min(
+            MAX_AIRLINES_PER_AIRPORT,
+            Math.max(MIN_AIRLINES_PER_AIRPORT, Math.round(MIN_AIRLINES_PER_AIRPORT + share * (MAX_AIRLINES_PER_AIRPORT - MIN_AIRLINES_PER_AIRPORT))),
+        );
+
+        const servingAirlineIatas = faker.helpers.arrayElements(fictionalAirlineIatas, count);
+        for (const airlineIata of servingAirlineIatas) {
+            insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airlineIata });
+        }
+    }
+    insertLink.free();
+}
+
 async function buildDb(): Promise<void> {
     const airports = parseAirports(path.join(TRAVEL_DIR, 'airports.csv'));
     const fictionalAirlines = parseAirlines(path.join(TRAVEL_DIR, 'fictional_airlines.csv'));
@@ -199,31 +228,7 @@ async function buildDb(): Promise<void> {
     }
     insertAirline.free();
 
-    // Airline coverage: relationship data isn't sourced from anywhere real, so it's
-    // assumed. Bigger airports (by passenger volume) get served by more airlines,
-    // scaled between MIN and MAX, using the default (fictional) airline roster.
-    const maxPassengers = Math.max(...airports.map((a) => a.passengersMonthly));
-    const fictionalAirlineIatas = fictionalAirlines.map((a) => a.iata);
-
-    const insertLink = db.prepare(`
-        INSERT INTO airport_airlines (airport_iata, airline_iata)
-        VALUES (:airport_iata, :airline_iata)
-    `);
-    for (const airport of airports) {
-        faker.seed(hashString(airport.iata));
-
-        const share = maxPassengers > 0 ? airport.passengersMonthly / maxPassengers : 0;
-        const count = Math.min(
-            MAX_AIRLINES_PER_AIRPORT,
-            Math.max(MIN_AIRLINES_PER_AIRPORT, Math.round(MIN_AIRLINES_PER_AIRPORT + share * (MAX_AIRLINES_PER_AIRPORT - MIN_AIRLINES_PER_AIRPORT))),
-        );
-
-        const servingAirlineIatas = faker.helpers.arrayElements(fictionalAirlineIatas, count);
-        for (const airlineIata of servingAirlineIatas) {
-            insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airlineIata });
-        }
-    }
-    insertLink.free();
+    linkAirportsToAirlines(db, airports, fictionalAirlines);
 
     await saveDatabase(TRAVEL_DIR, DB_NAME);
     await dropDatabase(DB_NAME);
