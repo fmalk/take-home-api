@@ -111,15 +111,6 @@ function parseAirlines(filePath: string): AirlineRow[] {
  * Insertion follow Stages of logic.
  */
 
-function getOrCreateLinkedSet(linked: Map<string, Set<string>>, airportIata: string): Set<string> {
-  let set = linked.get(airportIata);
-  if (!set) {
-    set = new Set<string>();
-    linked.set(airportIata, set);
-  }
-  return set;
-}
-
 const EARTH_RADIUS_KM = 6371;
 
 function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -150,71 +141,106 @@ function computeMeanNearestHubDistanceKm(airports: AirportRow[]): number {
   return nonHubs.length > 0 ? total / nonHubs.length : 0;
 }
 
-// Stage 1 - regional: every (non-isolated, non-"regional"-flagged) airport is served by
-// every airline headquartered in the same country, regardless of MIN/MAX.
-function linkRegionalAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[], linked: Map<string, Set<string>>): void {
+// Stage 1 - domestic: every (non-isolated) airport is served by every airline headquartered in the same country.
+function linkDomesticAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
   for (const airport of airports) {
-    const regionalAirlines = roster.filter((a) => a.countryCode === airport.countryCode);
-    const linkedIatas = getOrCreateLinkedSet(linked, airport.iata);
+    const domesticAirlines = roster.filter((a) => a.countryCode === airport.countryCode);
 
-    for (const airline of regionalAirlines) {
-      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
-      linkedIatas.add(airline.iata);
-    }
-  }
-}
-
-// Stage 1b - single regional airline: airports flagged "regional" (below 4M passengers/month)
-// are served by exactly one same-country airline per roster, not the full country roster.
-function linkSingleRegionalAirline(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[], linked: Map<string, Set<string>>): void {
-  for (const airport of airports) {
-    const candidates = roster.filter((a) => a.countryCode === airport.countryCode).sort((a, b) => a.iata.localeCompare(b.iata));
-    if (candidates.length === 0) continue;
-
-    const airline = candidates[0];
-    const linkedIatas = getOrCreateLinkedSet(linked, airport.iata);
-    insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
-    linkedIatas.add(airline.iata);
-  }
-}
-
-// Stage 2 - close cross border: airport pairs in different countries but within the
-// mean nearest-hub distance are connected with the union of airlines already serving
-// either side (e.g. from Stage 1). Still considered regional edges.
-function linkCrossBorderAirlines(
-  insertLink: Statement,
-  airports: AirportRow[],
-  linked: Map<string, Set<string>>,
-  meanHubDistanceKm: number,
-): void {
-  for (let i = 0; i < airports.length; i++) {
-    for (let j = i + 1; j < airports.length; j++) {
-      const a = airports[i];
-      const b = airports[j];
-      if (a.countryCode === b.countryCode) continue;
-      if (haversineDistanceKm(a, b) >= meanHubDistanceKm) continue;
-
-      const airlinesA = getOrCreateLinkedSet(linked, a.iata);
-      const airlinesB = getOrCreateLinkedSet(linked, b.iata);
-      const union = new Set([...airlinesA, ...airlinesB]);
-
-      for (const airlineIata of union) {
-        if (!airlinesA.has(airlineIata)) {
-          insertLink.run({ ':airport_iata': a.iata, ':airline_iata': airlineIata, ':regional': 1 });
-          airlinesA.add(airlineIata);
-        }
-        if (!airlinesB.has(airlineIata)) {
-          insertLink.run({ ':airport_iata': b.iata, ':airline_iata': airlineIata, ':regional': 1 });
-          airlinesB.add(airlineIata);
-        }
+    if (airport.isolated) {
+      // don't relate airlines here
+    } else if (airport.regional) {
+      const airline = domesticAirlines[0];
+      if (airline) {
+        insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
+      }
+    } else {
+      for (const airline of domesticAirlines) {
+        insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
       }
     }
   }
 }
 
-// Stage 3 - Hubs: Hubs are also served by BusinessClass and FirstClass airlines. Not considered regional edges.
-// TODO: define in a future pass.
-function linkHubAirlines(): void {}
+// The longest range we treat as a plausible nonstop for a premium (first/business class)
+// widebody service. Pairs further apart than this are considered "too far" for the airline's
+// fleet to reach from its headquarters, even though both ends are hubs.
+const MAX_HUB_RANGE_KM = 14000;
+
+// An airline's headquarters is deterministically the busiest airport in its home country,
+// preferring a distance hub if the country has one.
+function findAirlineHeadquarters(airports: AirportRow[], airline: AirlineRow): AirportRow | undefined {
+  const domesticAirports = airports.filter((a) => a.countryCode === airline.countryCode);
+  const domesticHubs = domesticAirports.filter((a) => a.distanceHub);
+  const candidates = domesticHubs.length > 0 ? domesticHubs : domesticAirports;
+
+  return candidates.reduce<AirportRow | undefined>((busiest, candidate) => {
+    if (!busiest || candidate.passengersMonthly > busiest.passengersMonthly) return candidate;
+    return busiest;
+  }, undefined);
+}
+
+// Stage 2 - Hubs: hubs are also served by every BusinessClass/FirstClass airline, unless the hub
+// is out of nonstop range from the airline's headquarters. Not considered regional edges.
+function linkHubAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
+  const hubs = airports.filter((a) => a.distanceHub);
+  const premiumAirlines = roster.filter((a) => a.firstClass || a.businessClass);
+
+  for (const airline of premiumAirlines) {
+    const headquarters = findAirlineHeadquarters(airports, airline);
+    if (!headquarters) continue;
+
+    for (const hub of hubs) {
+      if (haversineDistanceKm(headquarters, hub) > MAX_HUB_RANGE_KM) continue;
+
+      insertLink.run({ ':airport_iata': hub.iata, ':airline_iata': airline.iata, ':regional': 0 });
+    }
+  }
+}
+
+// Every pair of hubs must share at least one airline, or a hub-to-hub route would be
+// impossible to construct. Stage 2 links each airline independently by range from its own
+// headquarters, so nothing else guarantees two hubs stay mutually reachable — this is a
+// build-time safety net, not a fix: if it throws, the CSV data (or MAX_HUB_RANGE_KM) needs revisiting.
+function assertHubsFullyConnected(db: Database, hubs: AirportRow[]): void {
+  const rows = db.exec(`
+        SELECT aa.airline_iata, aa.airport_iata
+        FROM airport_airlines aa
+        JOIN airports a ON a.iata = aa.airport_iata
+        WHERE a.distance_hub = 1 AND aa.regional = 0
+    `);
+
+  const hubsByAirline = new Map<string, Set<string>>();
+  for (const [airlineIata, airportIata] of (rows[0]?.values ?? []) as [string, string][]) {
+    let served = hubsByAirline.get(airlineIata);
+    if (!served) {
+      served = new Set<string>();
+      hubsByAirline.set(airlineIata, served);
+    }
+    served.add(airportIata);
+  }
+
+  const airlineHubSets = [...hubsByAirline.values()];
+  const uncoveredPairs: string[] = [];
+  for (let i = 0; i < hubs.length; i++) {
+    for (let j = i + 1; j < hubs.length; j++) {
+      const a = hubs[i].iata;
+      const b = hubs[j].iata;
+      const covered = airlineHubSets.some((served) => served.has(a) && served.has(b));
+      if (!covered) uncoveredPairs.push(`${a}-${b}`);
+    }
+  }
+
+  if (uncoveredPairs.length > 0) {
+    throw new Error(
+      `Stage 2 left ${uncoveredPairs.length} hub pair(s) with no shared airline (no possible route between them): ${uncoveredPairs.join(', ')}`,
+    );
+  }
+}
+
+// Stage 3 - close cross border: airport pairs in different countries but within the
+// mean nearest-hub distance are connected with the union of airlines already serving
+// either side (e.g. from Stage 1). Still considered regional edges.
+function linkCrossBorderAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {}
 
 // Stage 4 - Last Mile Airports: Airports without Airlines yet should be served by ONE close regional airline.
 // TODO: define in a future pass.
@@ -237,23 +263,21 @@ function linkAirportsToAirlines(
   const regionalAirports = linkableAirports.filter((a) => a.regional);
 
   const meanHubDistanceKm = computeMeanNearestHubDistanceKm(airports);
-  const fictionalLinked = new Map<string, Set<string>>();
-  const realLinked = new Map<string, Set<string>>();
 
   // Stage 1
-  linkRegionalAirlines(insertLink, normalAirports, fictionalAirlines, fictionalLinked);
-  linkRegionalAirlines(insertLink, normalAirports, realAirlines, realLinked);
+  linkDomesticAirlines(insertLink, linkableAirports, fictionalAirlines);
+  linkDomesticAirlines(insertLink, linkableAirports, realAirlines);
 
-  // Stage 1b
-  linkSingleRegionalAirline(insertLink, regionalAirports, fictionalAirlines, fictionalLinked);
-  linkSingleRegionalAirline(insertLink, regionalAirports, realAirlines, realLinked);
-
-  // Stage 2 - only normal (non-regional, non-isolated) airports participate in cross-border expansion.
-  linkCrossBorderAirlines(insertLink, normalAirports, fictionalLinked, meanHubDistanceKm);
-  linkCrossBorderAirlines(insertLink, normalAirports, realLinked, meanHubDistanceKm);
+  // Stage 2
+  linkHubAirlines(insertLink, linkableAirports, fictionalAirlines);
+  linkHubAirlines(insertLink, linkableAirports, realAirlines);
+  assertHubsFullyConnected(
+    db,
+    linkableAirports.filter((a) => a.distanceHub),
+  );
 
   // Stage 3
-  linkHubAirlines();
+  linkCrossBorderAirlines(insertLink, normalAirports, meanHubDistanceKm);
 
   // Stage 4
   linkLastMileAirlines();
