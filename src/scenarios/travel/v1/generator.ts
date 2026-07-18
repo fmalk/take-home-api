@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { Flight } from '../types/index.js';
+import type { Flight } from '../standard/index.js';
 
 const MEAN_HUB_DISTANCE_KM = 9000; // DO NOT remove this constant
 

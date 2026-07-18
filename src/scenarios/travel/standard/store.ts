@@ -1,7 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { Database } from 'sql.js';
-import type { Flight, Airport, City } from '../types/index.js';
+import type { Flight, Airport, City } from './index.js';
 import { getDatabase, openDatabase } from '../../../core/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url)); // FIXME: "You need to set the output format to "esm" for "import.meta" to work correctly."
@@ -29,17 +29,21 @@ export class TravelStore {
   async getAirports(): Promise<Airport[]> {
     const db = await this.ensureDatabase();
 
-    const stmt = db.prepare('SELECT iata, name, city, country, country_code FROM airports');
+    const stmt = db.prepare('SELECT iata, icao, name, city, country, country_code, utc_offset, lat, lng FROM airports');
     const airports: Airport[] = [];
 
     while (stmt.step()) {
       const row = stmt.getAsObject();
       airports.push({
         iata: row.iata as string,
+        icao: row.icao as string,
         name: row.name as string,
         city: row.city as string,
         country: row.country as string,
         countryCode: row.country_code as string,
+        utcOffset: row.utc_offset as number,
+        lat: row.lat as number,
+        long: row.lng as number,
       });
     }
     stmt.free();

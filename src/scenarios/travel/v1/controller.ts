@@ -2,9 +2,10 @@ import type { FastifyRequest } from 'fastify';
 import { ApiError } from '../../../types/index.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
 import { generateFlights } from './generator.js';
-import { TravelStore } from './store.js';
+import { TravelStore } from '../standard/store.js';
 import { logFlow } from '../../../core/logger.js';
-import type { Flight, Airport, City } from '../types/index.js';
+import type { Flight, Airport, City } from '../standard/index.js';
+import type { V1Airport } from './types.js';
 
 const CACHE_TTL = 3600;
 const LARGE_CACHE_TTL = 3600 * 24;
@@ -12,6 +13,11 @@ const SCENARIO = 'travel';
 const NAMESPACE = `${SCENARIO}:v1`;
 
 const store = new TravelStore();
+
+// v1 airports drop icao/utcOffset from the standard shape.
+function toV1Airport({ icao: _icao, utcOffset: _utcOffset, ...airport }: Airport): V1Airport {
+  return airport;
+}
 
 export interface SearchFlightsQuery {
   from: string;
@@ -114,7 +120,7 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<Fli
   return flight;
 }
 
-export async function listAirports(request: FastifyRequest): Promise<{ airports: Airport[] }> {
+export async function listAirports(request: FastifyRequest): Promise<{ airports: V1Airport[] }> {
   logFlow({
     reqId: request.id,
     flow: 'list-airports',
@@ -122,10 +128,10 @@ export async function listAirports(request: FastifyRequest): Promise<{ airports:
   });
 
   const cacheKeyVal = cacheKey(NAMESPACE, 'airports');
-  let airports = getCached<Airport[]>(cacheKeyVal);
+  let airports = getCached<V1Airport[]>(cacheKeyVal);
 
   if (!airports) {
-    airports = await store.getAirports();
+    airports = (await store.getAirports()).map(toV1Airport);
     setCached(cacheKeyVal, airports, LARGE_CACHE_TTL);
 
     logFlow({
