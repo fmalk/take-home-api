@@ -4,15 +4,17 @@ A ready-made, well-designed REST API mimicking many **real world scenarios**.
 
 Each scenario models a realistic business domain — e-commerce, airline booking, food delivery, banking ledger, show tickets, scheduling appointments — fully implemented and served out of the box. No backend to design, no server to write. Just a real API with a friendly, well-documented flow, ready to run.
 
+Every scenario goes from /api/v1 with simple definitions and endpoints, up to /api/v4 with harder constraints, complex schemas and stricter flows. Use a version better suited for your intended usage.
+
 ## Why
 
-Most "coding challenge" tools ask you to build a backend from scratch. This one flips that: the API already exists, fully working, and you learn by _using_ it.
+Most "coding challenge" and "system design" tools ask you to build a backend from scratch. This one flips that: the API already exists, fully working, and you learn by **using** it.
 
 That's a closer match to a lot of real engineering work — consuming an API you didn't design, understanding its data model, and building something on top of it.
 
 ## Why #2
 
-At an old job, I used this concept for junior hiring and training: show them a very close to real API with our customer scenarios, how would they use it? What modifications would you do?
+At an old job, I used this concept for junior/internship hiring and training: show them a very close to real API with our customer scenarios, how would they use it? What modifications would they do? What endpoints do they miss?
 
 We would use those as input to Take Home Coding challenges. We were a mobile-focused company, so consuming API was essential to the job, for everyone. Exposing developers to it was very rewarding.
 
@@ -21,12 +23,12 @@ We would use those as input to Take Home Coding challenges. We were a mobile-foc
 1. **Build a frontend** against a well-modeled, realistic API.
 2. **Learn how a REST API works** by following real use-case flows.
 3. **Write integration tests** against a live, realistic target.
-
-This also makes it a good fit for take-home assessments, teaching REST API usage in a bootcamp, or as a stable target for AI agent evaluation.
+4. **Take Home assessments**: go to /docs to check how to use the API.
+5. _Near-Future_: use the provided MCP server for your AI agents.
 
 ## Scenarios
 
-Each scenario is a self-contained API namespace, versioned by how much of the domain it covers — not by difficulty:
+Each scenario is a self-contained API namespace, versioned by how much of the domain it covers — not just difficulty:
 
 ```
 /api/travel/v1 → core happy path
@@ -35,7 +37,7 @@ Each scenario is a self-contained API namespace, versioned by how much of the do
 /api/travel/v4 → aimed at a deeper understanding of real-world edge cases and complex data management
 ```
 
-Every scenario ships with an OpenAPI/Swagger spec and a set of static reference data (cities, airports, plane types, etc.); transactional data (flights, bookings, prices) is generated on-the-fly per request. Cache storage can remember sessions for a limited time, to allow real, stateful data: shop carts, temporary reserved seats, date restrictions.
+Every scenario ships with an OpenAPI/Swagger spec and a set of static reference data (cities, airports, products, venues, etc.); transactional data (flights, bookings, schedules, prices) is generated on-the-fly per request. Cache storage can remember sessions for a limited time, to allow real, stateful data: shop carts, temporary reserved seats, date restrictions.
 
 ## Getting started
 
