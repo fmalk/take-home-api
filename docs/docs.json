@@ -7,11 +7,7 @@
   "colors": {
     "primary": "#08663E",
     "light": "#2CCCB4",
-    "dark": "#178C77",
-    "anchors": {
-      "from": "#0D9373",
-      "to": "#07C983"
-    }
+    "dark": "#178C77"
   },
   "feedback": {
     "thumbsRating": true
