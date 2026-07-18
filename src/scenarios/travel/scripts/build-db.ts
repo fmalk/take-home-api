@@ -285,9 +285,80 @@ function assertHubsFullyConnected(db: Database, hubs: AirportRow[]): void {
 // either side (e.g. from Stage 1). Still considered regional edges.
 function linkCrossBorderAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {}
 
-// Stage Y - Last Mile Airports: Airports without Airlines yet should be served by ONE close regional airline.
-// TODO: define in a future pass.
-function linkLastMileAirlines(): void {}
+// Levenshtein edit distance between two strings, used as a deterministic (if arbitrary) way to
+// pick "the" airline for a regional airport instead of always taking the first in list.
+function levenshteinDistance(a: string, b: string): number {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const distances: number[][] = Array.from({ length: rows }, () => new Array<number>(cols).fill(0));
+
+  for (let i = 0; i < rows; i++) distances[i][0] = i;
+  for (let j = 0; j < cols; j++) distances[0][j] = j;
+
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      distances[i][j] = Math.min(distances[i - 1][j] + 1, distances[i][j - 1] + 1, distances[i - 1][j - 1] + cost);
+    }
+  }
+
+  return distances[a.length][b.length];
+}
+
+// Stage 4 - Last mile: every regional airport, whether or not it already has an airline from
+// Stage 1, picks up exactly one more airline sourced from its closest regular (non-regional-
+// flagged) airport. Among that airport's already-linked airlines, we deterministically pick
+// the one whose name is lexically closest (by Levenshtein distance) to the regional airport's
+// name, rather than an arbitrary "first in list" pick.
+function linkLastMileAirlines(
+  db: Database,
+  insertLink: Statement,
+  regularAirports: AirportRow[],
+  regionalAirports: AirportRow[],
+): void {
+  const airlineNameRows = db.exec('SELECT iata, name FROM airlines');
+  const airlineNames = new Map<string, string>();
+  for (const [iata, name] of (airlineNameRows[0]?.values ?? []) as [string, string][]) {
+    airlineNames.set(iata, name);
+  }
+
+  const servedAirlinesStmt = db.prepare(`
+        SELECT airline_iata FROM airport_airlines WHERE airport_iata = :airport_iata
+    `);
+
+  for (const regionalAirport of regionalAirports) {
+    const closest = regularAirports.reduce<{ airport: AirportRow; distance: number } | undefined>(
+      (nearest, candidate) => {
+        const distance = haversineDistanceKm(regionalAirport, candidate);
+        if (!nearest || distance < nearest.distance) return { airport: candidate, distance };
+        return nearest;
+      },
+      undefined,
+    );
+    if (!closest) continue;
+
+    servedAirlinesStmt.bind({ ':airport_iata': closest.airport.iata });
+    const servedAirlineIatas: string[] = [];
+    while (servedAirlinesStmt.step()) {
+      servedAirlineIatas.push(servedAirlinesStmt.getAsObject().airline_iata as string);
+    }
+    servedAirlinesStmt.reset();
+    if (servedAirlineIatas.length === 0) continue;
+
+    const bestAirlineIata = [...servedAirlineIatas]
+      .sort()
+      .reduce<{ iata: string; distance: number } | undefined>((best, iata) => {
+        const distance = levenshteinDistance(regionalAirport.name, airlineNames.get(iata) ?? '');
+        if (!best || distance < best.distance) return { iata, distance };
+        return best;
+      }, undefined);
+    if (!bestAirlineIata) continue;
+
+    insertLink.run({ ':airport_iata': regionalAirport.iata, ':airline_iata': bestAirlineIata.iata, ':regional': 1 });
+  }
+
+  servedAirlinesStmt.free();
+}
 
 function linkAirportsToAirlines(
   db: Database,
@@ -322,11 +393,11 @@ function linkAirportsToAirlines(
   // Stage 3
   linkRegularAirportsToHubs(db, insertLink, normalAirports);
 
+  // Stage 4
+  linkLastMileAirlines(db, insertLink, normalAirports, regionalAirports);
+
   // Stage X
   linkCrossBorderAirlines(insertLink, normalAirports, meanHubDistanceKm);
-
-  // Stage Y
-  linkLastMileAirlines();
 
   insertLink.free();
 }
