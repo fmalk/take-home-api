@@ -4,7 +4,7 @@ import type { Database } from 'sql.js';
 import type { Flight, Airport, City } from './types.js';
 import { getDatabase, openDatabase } from '../../../core/db.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url)); // FIXME: "You need to set the output format to "esm" for "import.meta" to work correctly."
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRAVEL_DIR = path.resolve(__dirname, '..');
 
 export class TravelStore {

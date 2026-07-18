@@ -7,10 +7,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=ES2022 --outfile=dist/index.js --sourcemap",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=ES2022 --format=esm --outfile=dist/index.js --sourcemap",
     "preview": "npm run build && npm start",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write .",
@@ -44,14 +47,17 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@types/sql.js": "^1.4.11",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^9.0.0",
+    "jest": "^30.4.2",
     "mintlify": "^4.2.0",
     "prettier": "^3.0.0",
+    "ts-jest": "^29.4.11",
     "tsx": "^4.23.1",
     "typescript": "^5.0.0"
   }
