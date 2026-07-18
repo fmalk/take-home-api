@@ -202,9 +202,11 @@ function linkHubAirlines(insertLink: Statement, airports: AirportRow[], roster: 
 // picks up both.
 const REGULAR_AIRPORT_HUB_RADIUS_KM = 3500;
 
-// Stage 3 - Regular airports: every non-hub airport connects to every hub within range,
-// extending that hub's already-linked non-regional (premium) airlines out to it. An airport
-// with no hub in range still gets its single closest hub, so nothing is left unreachable.
+// Stage 3 - Regular airports: every non-hub, non-regional-flagged airport connects to every hub
+// within range, extending that hub's already-linked non-regional (premium) airlines out to it.
+// An airport with no hub in range still gets its single closest hub, so nothing is left
+// unreachable. Regional-flagged airports are deliberately out of scope here — Stage 1 already
+// gives them their one domestic airline, and any further reach is a later stage's call.
 function linkRegularAirportsToHubs(db: Database, insertLink: Statement, airports: AirportRow[]): void {
   const hubs = airports.filter((a) => a.distanceHub);
   const regularAirports = airports.filter((a) => !a.distanceHub);
@@ -318,7 +320,7 @@ function linkAirportsToAirlines(
   );
 
   // Stage 3
-  linkRegularAirportsToHubs(db, insertLink, linkableAirports);
+  linkRegularAirportsToHubs(db, insertLink, normalAirports);
 
   // Stage X
   linkCrossBorderAirlines(insertLink, normalAirports, meanHubDistanceKm);

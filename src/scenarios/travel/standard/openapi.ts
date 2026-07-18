@@ -63,15 +63,7 @@ export const seatsSchema = {
 
 export const flightSchema = {
   type: 'object',
-  required: [
-    'id',
-    'flightTimeHours',
-    'flightDistanceKms',
-    'departure',
-    'arrival',
-    'travelInfo',
-    'available',
-  ],
+  required: ['id', 'flightTimeHours', 'flightDistanceKms', 'departure', 'arrival', 'travelInfo', 'available'],
   properties: {
     id: { type: 'string', description: 'Unique Flight identifier' },
     flightTimeHours: { type: 'number', description: 'Flight time in hours' },

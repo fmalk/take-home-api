@@ -18,4 +18,4 @@ function omitSchemaFields<T extends ObjectSchema>(schema: T, fields: string[]): 
 
 export const v1AirportSchema = omitSchemaFields(airportSchema, ['icao', 'utcOffset', 'lat', 'long']);
 export const v1AirlineSchema = omitSchemaFields(airlineSchema, ['icao']);
-export const v1FlightSchema = omitSchemaFields(flightSchema, ['pricing', 'seats']) // TODO: add the flat "price" 
+export const v1FlightSchema = omitSchemaFields(flightSchema, ['pricing', 'seats']); // TODO: add the flat "price"

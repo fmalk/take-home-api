@@ -29,7 +29,9 @@ export class TravelStore {
   async getAirports(): Promise<Airport[]> {
     const db = await this.ensureDatabase();
 
-    const stmt = db.prepare('SELECT iata, icao, name, city, country, country_code, utc_offset, lat, lng, distance_hub, regional, isolated FROM airports');
+    const stmt = db.prepare(
+      'SELECT iata, icao, name, city, country, country_code, utc_offset, lat, lng, distance_hub, regional, isolated FROM airports',
+    );
     const airports: Airport[] = [];
 
     while (stmt.step()) {
@@ -47,7 +49,7 @@ export class TravelStore {
         isHub: row.distance_hub as boolean,
         isIsolated: row.isolated as boolean,
         isRegional: row.regional as boolean,
-        isStandard: !(row.distance_hub as boolean || row.isolated as boolean || row.regional as boolean),
+        isStandard: !((row.distance_hub as boolean) || (row.isolated as boolean) || (row.regional as boolean)),
       });
     }
     stmt.free();
