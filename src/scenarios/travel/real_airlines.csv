@@ -1,56 +1,57 @@
-iata,icao,airline,country,country_code,low_cost,first_class,business_class
-ET,ETH,Ethiopian Airlines,Ethiopia,ET,0,0,0
-SA,SAA,South African Airways,South Africa,ZA,0,0,0
-MS,MSR,Egyptair,Egypt,EG,0,0,0
-4H,DRC,Air Congo,Democratic Republic of the Congo,CD,0,0,0
-AT,RAM,Royal Air Maroc,Morocco,MA,0,0,1
-CA,CCA,Air China,China,CN,0,0,0
-6E,IGO,IndiGo,India,IN,0,0,0
-AK,AXM,AirAsia,Malaysia,MY,0,0,0
-QR,QTR,Qatar Airways,Qatar,QA,0,1,1
-EK,UAE,Emirates,United Arab Emirates,AE,0,1,1
-JL,JAL,Japan Airlines,Japan,JP,0,1,1
-SQ,SIA,Singapore Airlines,Singapore,SG,0,1,1
-SV,SVA,Saudia,Saudi Arabia,SA,0,0,1
-VJ,VJC,VietJet Air,Vietnam,VN,0,0,0
-5J,CEB,Cebu Pacific,Philippines,PH,0,0,0
-GA,GIA,Garuda Indonesia,Indonesia,ID,0,0,1
-KE,KAL,Korean Air,South Korea,KR,0,0,1
-EY,ETD,Etihad Airways,United Arab Emirates,AE,0,1,1
-KC,KZR,Air Astana,Kazakhstan,KZ,0,0,0
-HY,UZB,Uzbekistan Airways,Uzbekistan,UZ,0,0,0
-PG,BKP,Bangkok Airways,Thailand,TH,0,0,0
-RJ,RJA,Royal Jordanian Airlines,Jordan,JO,0,0,0
-BR,EVA,EVA Airways,Taiwan,TW,0,0,1
-BG,BBC,Biman,Bangladesh,BD,0,0,0
-PK,PIA,Pakistan International Airlines,Pakistan,PK,0,0,1
-FR,RYR,Ryanair,Ireland,IE,1,0,0
-LH,DLH,Lufthansa,Germany,DE,0,0,1
-BA,BAW,British Airways,England,GB,0,0,1
-IB,IBE,Iberia,Spain,ES,0,0,1
-AF,AFR,Air France,France,FR,0,0,1
-TK,THY,Turkish Airlines,Turkey,TR,0,0,1
-W6,WZZ,Wizz Air,Hungary,HU,1,0,0
-SU,AFL,Aeroflot,Russia,RU,0,0,1
-SK,SAS,Scandinavian Airlines,Sweden,SE,0,0,0
-LS,EXS,Jet2,England,GB,1,0,0
-A3,AEE,Aegean Airlines,Greece,GR,0,0,0
-TP,TAP,TAP Air Portugal,Portugal,PT,0,0,1
-AZ,ITY,ITA Airways,Italy,IT,0,0,1
-OK,CSA,Czech Airlines,Czech Republic,CZ,0,0,0
-JU,ASL,AirSERBIA,Serbia,RS,0,0,0
-UA,UAL,United Airlines,United States of America,US,0,0,1
-AA,AAL,American Airlines,United States of America,US,0,0,1
-DL,DAL,Delta Air Lines,United States of America,US,0,0,1
-WN,SWA,Southwest Airlines,United States of America,US,0,0,0
-AC,ACA,Air Canada,Canada,CA,0,0,1
-CM,CMP,Copa Airlines,Panama,PA,0,0,0
-BW,BWA,Caribbean Airlines,Trinidad and Tobago,TT,0,0,0
-QF,QFA,Qantas Airways,Australia,AU,0,0,1
-VA,VOZ,Virgin Australia,Australia,AU,0,0,0
-NZ,ANZ,Air New Zealand,New Zealand,NZ,0,0,1
-LA,TAM,LATAM Airlines,Chile,CL,0,0,0
-AV,AVA,Avianca,Colombia,CO,0,0,1
-G3,GLO,GOL Linhas Aéreas,Brazil,BR,0,0,0
-AD,AZU,Azul Linhas Aéreas,Brazil,BR,0,0,0
-AR,ARG,Aerolíneas Argentinas,Argentina,AR,0,0,0
+iata,icao,airline,country,country_code,low_cost,first_class,business_class,loyalty
+ET,ETH,Ethiopian Airlines,Ethiopia,ET,0,0,1,0
+SA,SAA,South African Airways,South Africa,ZA,0,0,0,0
+MS,MSR,Egyptair,Egypt,EG,0,0,0,0
+4H,DRC,Air Congo,Democratic Republic of the Congo,CD,0,0,0,0
+P4,APK,Air Peace,Nigeria,NG,0,0,0,0
+AT,RAM,Royal Air Maroc,Morocco,MA,0,0,1,0
+CA,CCA,Air China,China,CN,0,0,0,0
+6E,IGO,IndiGo,India,IN,0,0,0,0
+AK,AXM,AirAsia,Malaysia,MY,0,0,0,0
+QR,QTR,Qatar Airways,Qatar,QA,0,1,1,0
+EK,UAE,Emirates,United Arab Emirates,AE,0,1,1,0
+JL,JAL,Japan Airlines,Japan,JP,0,1,1,0
+SQ,SIA,Singapore Airlines,Singapore,SG,0,1,1,0
+SV,SVA,Saudia,Saudi Arabia,SA,0,0,1,0
+VJ,VJC,VietJet Air,Vietnam,VN,0,0,0,0
+5J,CEB,Cebu Pacific,Philippines,PH,0,0,0,0
+GA,GIA,Garuda Indonesia,Indonesia,ID,0,0,1,0
+KE,KAL,Korean Air,South Korea,KR,0,0,1,0
+EY,ETD,Etihad Airways,United Arab Emirates,AE,0,1,1,0
+KC,KZR,Air Astana,Kazakhstan,KZ,0,0,0,0
+HY,UZB,Uzbekistan Airways,Uzbekistan,UZ,0,0,0,0
+PG,BKP,Bangkok Airways,Thailand,TH,0,0,0,0
+RJ,RJA,Royal Jordanian Airlines,Jordan,JO,0,0,0,0
+BR,EVA,EVA Airways,Taiwan,TW,0,0,1,0
+BG,BBC,Biman,Bangladesh,BD,0,0,0,0
+PK,PIA,Pakistan International Airlines,Pakistan,PK,0,0,1,0
+FR,RYR,Ryanair,Ireland,IE,1,0,0,0
+LH,DLH,Lufthansa,Germany,DE,0,0,1,0
+BA,BAW,British Airways,England,GB,0,0,1,0
+IB,IBE,Iberia,Spain,ES,0,0,1,0
+AF,AFR,Air France,France,FR,0,0,1,0
+TK,THY,Turkish Airlines,Turkey,TR,0,0,1,0
+W6,WZZ,Wizz Air,Hungary,HU,1,0,0,0
+SU,AFL,Aeroflot,Russia,RU,0,0,1,0
+SK,SAS,Scandinavian Airlines,Sweden,SE,0,0,0,0
+LS,EXS,Jet2,England,GB,1,0,0,0
+A3,AEE,Aegean Airlines,Greece,GR,0,0,0,0
+TP,TAP,TAP Air Portugal,Portugal,PT,0,0,1,0
+AZ,ITY,ITA Airways,Italy,IT,0,0,1,0
+OK,CSA,Czech Airlines,Czech Republic,CZ,0,0,0,0
+JU,ASL,AirSERBIA,Serbia,RS,0,0,0,0
+UA,UAL,United Airlines,United States of America,US,0,0,1,0
+AA,AAL,American Airlines,United States of America,US,0,0,1,0
+DL,DAL,Delta Air Lines,United States of America,US,0,0,1,0
+WN,SWA,Southwest Airlines,United States of America,US,0,0,0,0
+AC,ACA,Air Canada,Canada,CA,0,0,1,0
+CM,CMP,Copa Airlines,Panama,PA,0,0,0,0
+BW,BWA,Caribbean Airlines,Trinidad and Tobago,TT,0,0,0,0
+QF,QFA,Qantas Airways,Australia,AU,0,0,1,0
+VA,VOZ,Virgin Australia,Australia,AU,0,0,0,0
+NZ,ANZ,Air New Zealand,New Zealand,NZ,0,0,1,0
+LA,TAM,LATAM Airlines,Chile,CL,0,0,0,0
+AV,AVA,Avianca,Colombia,CO,0,0,1,0
+G3,GLO,GOL Linhas Aéreas,Brazil,BR,0,0,0,0
+AD,AZU,Azul Linhas Aéreas,Brazil,BR,0,0,0,0
+AR,ARG,Aerolíneas Argentinas,Argentina,AR,0,0,0,0

@@ -6,15 +6,20 @@ Thank you for your interest in contributing! We welcome contributions from the c
 
 1. Fork the repository on GitHub
 2. Clone your fork locally:
+
 ```bash
    git clone https://github.com/your-username/take-home-api.git
    cd take-home-api
 ```
+
 3. Add the upstream repository:
+
 ```bash
    git remote add upstream https://github.com/Cellide/take-home-api.git
 ```
+
 4. Create a new branch for your feature or fix:
+
 ```bash
    git checkout -b feature/your-feature-name
 ```
@@ -22,18 +27,25 @@ Thank you for your interest in contributing! We welcome contributions from the c
 ## Development Setup
 
 1. Install dependencies:
+
 ```bash
    npm install
 ```
+
 2. Run the development server:
+
 ```bash
    npm run dev
 ```
+
 3. Run tests:
+
 ```bash
    npm test
 ```
+
 4. Lint and format code:
+
 ```bash
    npm run lint:fix
    npm run format
@@ -68,9 +80,11 @@ This adds a "Signed-off-by" line to your commit message.
 ## Submitting Changes
 
 1. Push your branch to your fork:
+
 ```bash
    git push origin feature/your-feature-name
 ```
+
 2. Create a Pull Request on GitHub
 3. Describe your changes clearly in the PR description
 4. Reference any related issues using `#issue-number`

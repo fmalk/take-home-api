@@ -6,85 +6,88 @@ const csvPath = path.join(TRAVEL_DIR, 'airports.csv');
 const outPath = path.join(TRAVEL_DIR, 'airports-map.html');
 
 function parseCsv(text) {
-    const rows = [];
-    let row = [];
-    let field = '';
-    let inQuotes = false;
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
 
-    for (let i = 0; i < text.length; i++) {
-        const c = text[i];
-        if (inQuotes) {
-            if (c === '"') {
-                if (text[i + 1] === '"') {
-                    field += '"';
-                    i++;
-                } else {
-                    inQuotes = false;
-                }
-            } else {
-                field += c;
-            }
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
         } else {
-            if (c === '"') {
-                inQuotes = true;
-            } else if (c === ',') {
-                row.push(field);
-                field = '';
-            } else if (c === '\n' || c === '\r') {
-                if (c === '\r' && text[i + 1] === '\n') i++;
-                row.push(field);
-                field = '';
-                if (row.length > 1 || row[0] !== '') rows.push(row);
-                row = [];
-            } else {
-                field += c;
-            }
+          inQuotes = false;
         }
-    }
-    if (field !== '' || row.length > 0) {
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
         row.push(field);
+        field = '';
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field);
+        field = '';
         if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else {
+        field += c;
+      }
     }
-    return rows;
+  }
+  if (field !== '' || row.length > 0) {
+    row.push(field);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+  }
+  return rows;
 }
 
-let csvText = fs.readFileSync(csvPath, 'utf-8');
-if (csvText.charCodeAt(0) === 0xfeff) {
-    csvText = csvText.slice(1);
-}
+const csvText = fs.readFileSync(csvPath, 'utf-8');
 
 const rows = parseCsv(csvText);
 const header = rows[0];
 const dataRows = rows.slice(1);
 
 const idx = {
-    iata: header.indexOf('iata'),
-    icao: header.indexOf('icao'),
-    name: header.indexOf('name'),
-    city: header.indexOf('city'),
-    country: header.indexOf('country'),
-    lat: header.indexOf('lat'),
-    lng: header.indexOf('lng'),
-    distanceHub: header.indexOf('distance_hub'),
+  iata: header.indexOf('iata'),
+  icao: header.indexOf('icao'),
+  name: header.indexOf('name'),
+  city: header.indexOf('city'),
+  country: header.indexOf('country'),
+  lat: header.indexOf('lat'),
+  lng: header.indexOf('lng'),
+  distanceHub: header.indexOf('distance_hub'),
+  isolated: header.indexOf('isolated'),
+  regional: header.indexOf('regional'),
 };
 
 const airports = dataRows
-    .filter((r) => r.length >= header.length && r[idx.iata])
-    .map((r) => ({
-        iata: r[idx.iata],
-        icao: r[idx.icao],
-        name: r[idx.name],
-        city: r[idx.city],
-        country: r[idx.country],
-        lat: parseFloat(r[idx.lat]),
-        lng: parseFloat(r[idx.lng]),
-        // Internal-only flag: rendered as a red marker on this map, never exposed via API/DTOs.
-        distanceHub: idx.distanceHub !== -1 && r[idx.distanceHub] === '1',
-    }))
-    .filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lng));
+  .filter((r) => r.length >= header.length && r[idx.iata])
+  .map((r) => ({
+    iata: r[idx.iata],
+    icao: r[idx.icao],
+    name: r[idx.name],
+    city: r[idx.city],
+    country: r[idx.country],
+    lat: parseFloat(r[idx.lat]),
+    lng: parseFloat(r[idx.lng]),
+    // Internal-only flags: rendered as colored markers on this map, never exposed via API/DTOs.
+    distanceHub: idx.distanceHub !== -1 && r[idx.distanceHub] === '1',
+    isolated: idx.isolated !== -1 && r[idx.isolated] === '1',
+    regional: idx.regional !== -1 && r[idx.regional] === '1',
+  }))
+  .filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lng));
 
 console.log(`Parsed ${airports.length} airports from ${dataRows.length} data rows`);
 console.log(`  distance hubs: ${airports.filter((a) => a.distanceHub).length}`);
+console.log(`  isolated: ${airports.filter((a) => a.isolated).length}`);
+console.log(`  regional: ${airports.filter((a) => a.regional).length}`);
 
 const html = `<!DOCTYPE html>
 <html>
@@ -182,7 +185,9 @@ const html = `<!DOCTYPE html>
         <div><span class="stat-label">Total Airports:</span> <span class="stat-value" id="airport-count">0</span></div>
         <div><span class="stat-label">Countries:</span> <span class="stat-value" id="country-count">0</span></div>
         <div><span class="legend-dot" style="background:#3388ff;"></span>Standard</div>
-        <div><span class="legend-dot" style="background:#e74c3c;"></span>Distance hub</div>
+        <div><span class="legend-dot" style="background:#2ecc71;"></span>Hub</div>
+        <div><span class="legend-dot" style="background:#e67e22;"></span>Isolated</div>
+        <div><span class="legend-dot" style="background:#7b7b7b;"></span>Regional</div>
     </div>
 
     <script>
@@ -196,8 +201,26 @@ const html = `<!DOCTYPE html>
 
         const countrySet = new Set();
 
-        const redIcon = new L.Icon({
-            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-red.png',
+        const greenIcon = new L.Icon({
+            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const orangeIcon = new L.Icon({
+            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-orange.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const greyIcon = new L.Icon({
+            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-grey.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
@@ -207,8 +230,12 @@ const html = `<!DOCTYPE html>
 
         airports.forEach(airport => {
             const markerOptions = { title: airport.iata };
-            if (airport.distanceHub) {
-                markerOptions.icon = redIcon;
+            if (airport.isolated) {
+                markerOptions.icon = orangeIcon;
+            } else if (airport.distanceHub) {
+                markerOptions.icon = greenIcon;
+            } else if (airport.regional) {
+                markerOptions.icon = greyIcon;
             }
             const marker = L.marker([airport.lat, airport.lng], markerOptions);
 
