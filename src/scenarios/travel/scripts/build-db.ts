@@ -503,7 +503,7 @@ async function buildDb(): Promise<void> {
   console.log(`Built ${dbPath}`);
   console.log(`  airports: ${airports.length}`);
   console.log(`  airlines: ${fictionalAirlines.length} fictional + ${realAirlines.length} real`);
-  console.log(`  airport_airlines: regional (same-country) fictional + real airlines per airport`);
+  console.log(`  airport_airlines: possible airline flights between airports`);
   console.log(`  isolated airports (no flights): ${airports.filter((a) => a.isolated).length}`);
   console.log(`  regional airports (few airlines): ${airports.filter((a) => a.regional).length}`);
 }
