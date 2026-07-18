@@ -157,12 +157,10 @@ src/
 
 ### Testing Standards
 
-- DO NOT WRITE TESTS YET, it is too early in the project for that
-- ~~Aim for 80%+ test coverage~~
-- ~~Write unit tests for utilities and business logic~~
-- ~~Use integration tests for component interactions~~
-- ~~Implement e2e tests for critical user flows~~
-- ~~Follow AAA pattern (Arrange, Act, Assert)~~
+- Aim for 80%+ test coverage
+- Write unit tests for utilities and business logic
+- Use integration tests for component interactions
+- Follow AAA pattern (Arrange, Act, Assert)
 
 ## Performance Optimization
 
@@ -208,13 +206,13 @@ src/
 
 1. Use TypeScript for type safety
 2. Run linter frequently to catch issues early
-3. ~~Write tests for new features~~
+3. Write tests for new features
 4. Use meaningful commit messages
 5. The user will review committed code
 
 ### Before Committing
 
-1. ~~Run full test suite: `npm test`~~
+1. ~~Run full test suite: `npm test`~~ (run only if instructed)
 2. Check linting: `npm run lint`
 3. Verify formatting: `npm run format:check`
 4. Run type checking: `npm run typecheck`
