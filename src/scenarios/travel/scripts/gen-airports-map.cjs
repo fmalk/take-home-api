@@ -48,10 +48,7 @@ function parseCsv(text) {
   return rows;
 }
 
-let csvText = fs.readFileSync(csvPath, 'utf-8');
-if (csvText.charCodeAt(0) === 0xfeff) {
-  csvText = csvText.slice(1);
-}
+const csvText = fs.readFileSync(csvPath, 'utf-8');
 
 const rows = parseCsv(csvText);
 const header = rows[0];

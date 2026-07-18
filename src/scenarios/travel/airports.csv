@@ -1,4 +1,4 @@
-﻿iata,icao,name,city,country,country_code,passengers_monthly,lat,lng,utc_offset,distance_hub
+iata,icao,name,city,country,country_code,passengers_monthly,lat,lng,utc_offset,distance_hub
 ATL,KATL,Hartsfield Jackson Atlanta International Airport,Atlanta,United States of America,US,108.1,33.6367,-84.428101,-5,1
 DXB,OMDB,Dubai International Airport,Dubai,United Arab Emirates,AE,92.3,25.2527999878,55.3643989563,4,1
 DFW,KDFW,Dallas Fort Worth International Airport,Dallas-Fort Worth,United States of America,US,87.8,32.896801,-97.038002,-6,0
