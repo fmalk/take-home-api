@@ -27,5 +27,15 @@
   },
   "footerSocials": {
     "github": "https://github.com/fmalk/take-home-api"
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/fmalk/take-home-api"
+    }
+  },
+  "errors": {
+    "404": {
+      "redirect": false
+    }
   }
 }
