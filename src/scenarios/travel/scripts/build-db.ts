@@ -20,6 +20,7 @@ interface AirportRow {
   lng: number;
   utcOffset: number;
   distanceHub: boolean;
+  isolated: boolean;
 }
 
 interface AirlineRow {
@@ -84,6 +85,7 @@ function parseAirports(filePath: string): AirportRow[] {
     lng: Number(r[8]),
     utcOffset: Number(r[9]),
     distanceHub: r[10] === '1',
+    isolated: r[11] === '1',
   }));
 }
 
@@ -107,50 +109,100 @@ function parseAirlines(filePath: string): AirlineRow[] {
  * Insertion follow Stages of logic.
  */
 
+function getOrCreateLinkedSet(linked: Map<string, Set<string>>, airportIata: string): Set<string> {
+  let set = linked.get(airportIata);
+  if (!set) {
+    set = new Set<string>();
+    linked.set(airportIata, set);
+  }
+  return set;
+}
+
+const EARTH_RADIUS_KM = 6371;
+
+function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
+
+// The mean distance from each non-hub airport to its nearest hub (distance_hub = true).
+// This is the "direct flight vs. layover through a hub" standard: below this distance,
+// treat a route as directly flyable; at or above it, prefer routing through the nearest hub.
+function computeMeanNearestHubDistanceKm(airports: AirportRow[]): number {
+  const hubs = airports.filter((a) => a.distanceHub);
+  const nonHubs = airports.filter((a) => !a.distanceHub);
+
+  let total = 0;
+  for (const airport of nonHubs) {
+    let nearest = Infinity;
+    for (const hub of hubs) {
+      const distance = haversineDistanceKm(airport, hub);
+      if (distance < nearest) nearest = distance;
+    }
+    total += nearest;
+  }
+
+  return nonHubs.length > 0 ? total / nonHubs.length : 0;
+}
+
 // Stage 1 - regional: every airport is served by every airline headquartered in the
 // same country, regardless of MIN/MAX.
-function linkRegionalAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
+function linkRegionalAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[], linked: Map<string, Set<string>>): void {
   for (const airport of airports) {
     const regionalAirlines = roster.filter((a) => a.countryCode === airport.countryCode);
+    const linkedIatas = getOrCreateLinkedSet(linked, airport.iata);
 
     for (const airline of regionalAirlines) {
       insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
+      linkedIatas.add(airline.iata);
     }
   }
 }
 
-// Stage 2 - close cross border: TO BE DETERMINED. Still considered regional edges.
-function linkCrossBorderAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
-  for (const airport of airports) {
-    // TODO: logic
+// Stage 2 - close cross border: airport pairs in different countries but within the
+// mean nearest-hub distance are connected with the union of airlines already serving
+// either side (e.g. from Stage 1). Still considered regional edges.
+function linkCrossBorderAirlines(
+  insertLink: Statement,
+  airports: AirportRow[],
+  linked: Map<string, Set<string>>,
+  meanHubDistanceKm: number,
+): void {
+  for (let i = 0; i < airports.length; i++) {
+    for (let j = i + 1; j < airports.length; j++) {
+      const a = airports[i];
+      const b = airports[j];
+      if (a.countryCode === b.countryCode) continue;
+      if (haversineDistanceKm(a, b) >= meanHubDistanceKm) continue;
 
-    for (const airline of regionalAirlines) {
-      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
+      const airlinesA = getOrCreateLinkedSet(linked, a.iata);
+      const airlinesB = getOrCreateLinkedSet(linked, b.iata);
+      const union = new Set([...airlinesA, ...airlinesB]);
+
+      for (const airlineIata of union) {
+        if (!airlinesA.has(airlineIata)) {
+          insertLink.run({ ':airport_iata': a.iata, ':airline_iata': airlineIata, ':regional': 1 });
+          airlinesA.add(airlineIata);
+        }
+        if (!airlinesB.has(airlineIata)) {
+          insertLink.run({ ':airport_iata': b.iata, ':airline_iata': airlineIata, ':regional': 1 });
+          airlinesB.add(airlineIata);
+        }
+      }
     }
   }
 }
 
 // Stage 3 - Hubs: Hubs are also served by BusinessClass and FirstClass airlines. Not considered regional edges.
-function linkHubAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
-  for (const airport of airports) {
-    // TODO: logic
-
-    for (const airline of regionalAirlines) {
-      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 0 });
-    }
-  }
-}
+// TODO: define in a future pass.
+function linkHubAirlines(): void {}
 
 // Stage 4 - Last Mile Airports: Airports without Airlines yet should be served by ONE close regional airline.
-function linkLastMileAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
-  for (const airport of airports) {
-    // TODO: logic
-
-    for (const airline of regionalAirlines) {
-      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
-    }
-  }
-}
+// TODO: define in a future pass.
+function linkLastMileAirlines(): void {}
 
 function linkAirportsToAirlines(
   db: Database,
@@ -159,25 +211,27 @@ function linkAirportsToAirlines(
   realAirlines: AirlineRow[],
 ): void {
   const insertLink = db.prepare(`
-        INSERT INTO airport_airlines (airport_iata, airline_iata, regional)
+        INSERT OR IGNORE INTO airport_airlines (airport_iata, airline_iata, regional)
         VALUES (:airport_iata, :airline_iata, :regional)
     `);
 
+  const meanHubDistanceKm = computeMeanNearestHubDistanceKm(airports);
+  const fictionalLinked = new Map<string, Set<string>>();
+  const realLinked = new Map<string, Set<string>>();
+
   // Stage 1
-  linkRegionalAirlines(insertLink, airports, fictionalAirlines);
-  linkRegionalAirlines(insertLink, airports, realAirlines);
+  linkRegionalAirlines(insertLink, airports, fictionalAirlines, fictionalLinked);
+  linkRegionalAirlines(insertLink, airports, realAirlines, realLinked);
 
   // Stage 2
-  linkCrossBorderAirlines(insertLink, airports, fictionalAirlines);
-  linkCrossBorderAirlines(insertLink, airports, realAirlines);
+  linkCrossBorderAirlines(insertLink, airports, fictionalLinked, meanHubDistanceKm);
+  linkCrossBorderAirlines(insertLink, airports, realLinked, meanHubDistanceKm);
 
   // Stage 3
-  linkHubAirlines(insertLink, airports, fictionalAirlines);
-  linkHubAirlines(insertLink, airports, realAirlines);
+  linkHubAirlines();
 
   // Stage 4
-  linkLastMileAirlines(insertLink, airports, fictionalAirlines);
-  linkLastMileAirlines(insertLink, airports, realAirlines);
+  linkLastMileAirlines();
 
   insertLink.free();
 }
@@ -207,7 +261,8 @@ async function buildDb(): Promise<void> {
             lat REAL NOT NULL,
             lng REAL NOT NULL,
             utc_offset REAL NOT NULL,
-            distance_hub INTEGER NOT NULL
+            distance_hub INTEGER NOT NULL,
+            isolated INTEGER NOT NULL
         );
         CREATE UNIQUE INDEX idx_airports_icao ON airports (icao);
 
@@ -235,8 +290,8 @@ async function buildDb(): Promise<void> {
     `);
 
   const insertAirport = db.prepare(`
-        INSERT INTO airports (iata, icao, name, city, country, country_code, passengers_monthly, lat, lng, utc_offset, distance_hub)
-        VALUES (:iata, :icao, :name, :city, :country, :country_code, :passengers_monthly, :lat, :lng, :utc_offset, :distance_hub)
+        INSERT INTO airports (iata, icao, name, city, country, country_code, passengers_monthly, lat, lng, utc_offset, distance_hub, isolated)
+        VALUES (:iata, :icao, :name, :city, :country, :country_code, :passengers_monthly, :lat, :lng, :utc_offset, :distance_hub, :isolated)
     `);
   for (const a of airports) {
     insertAirport.run({
@@ -251,6 +306,7 @@ async function buildDb(): Promise<void> {
       ':lng': a.lng,
       ':utc_offset': a.utcOffset,
       ':distance_hub': a.distanceHub ? 1 : 0,
+      ':isolated': a.isolated ? 1 : 0,
     });
   }
   insertAirport.free();

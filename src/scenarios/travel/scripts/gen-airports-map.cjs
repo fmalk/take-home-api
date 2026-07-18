@@ -63,6 +63,7 @@ const idx = {
   lat: header.indexOf('lat'),
   lng: header.indexOf('lng'),
   distanceHub: header.indexOf('distance_hub'),
+  isolated: header.indexOf('isolated'),
 };
 
 const airports = dataRows
@@ -75,13 +76,15 @@ const airports = dataRows
     country: r[idx.country],
     lat: parseFloat(r[idx.lat]),
     lng: parseFloat(r[idx.lng]),
-    // Internal-only flag: rendered as a red marker on this map, never exposed via API/DTOs.
+    // Internal-only flags: rendered as colored markers on this map, never exposed via API/DTOs.
     distanceHub: idx.distanceHub !== -1 && r[idx.distanceHub] === '1',
+    isolated: idx.isolated !== -1 && r[idx.isolated] === '1',
   }))
   .filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lng));
 
 console.log(`Parsed ${airports.length} airports from ${dataRows.length} data rows`);
 console.log(`  distance hubs: ${airports.filter((a) => a.distanceHub).length}`);
+console.log(`  isolated: ${airports.filter((a) => a.isolated).length}`);
 
 const html = `<!DOCTYPE html>
 <html>
@@ -180,6 +183,7 @@ const html = `<!DOCTYPE html>
         <div><span class="stat-label">Countries:</span> <span class="stat-value" id="country-count">0</span></div>
         <div><span class="legend-dot" style="background:#3388ff;"></span>Standard</div>
         <div><span class="legend-dot" style="background:#e74c3c;"></span>Distance hub</div>
+        <div><span class="legend-dot" style="background:#f1c40f;"></span>Isolated</div>
     </div>
 
     <script>
@@ -202,9 +206,20 @@ const html = `<!DOCTYPE html>
             shadowSize: [41, 41]
         });
 
+        const yellowIcon = new L.Icon({
+            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-yellow.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
         airports.forEach(airport => {
             const markerOptions = { title: airport.iata };
-            if (airport.distanceHub) {
+            if (airport.isolated) {
+                markerOptions.icon = yellowIcon;
+            } else if (airport.distanceHub) {
                 markerOptions.icon = redIcon;
             }
             const marker = L.marker([airport.lat, airport.lng], markerOptions);
