@@ -197,6 +197,47 @@ function linkHubAirlines(insertLink: Statement, airports: AirportRow[], roster: 
   }
 }
 
+// Airports within this radius of a hub are close enough for that hub's premium airlines to
+// reach as a feeder route. An airport sitting between two hubs (e.g. BGF between LOS and NBO)
+// picks up both.
+const REGULAR_AIRPORT_HUB_RADIUS_KM = 3500;
+
+// Stage 3 - Regular airports: every non-hub airport connects to every hub within range,
+// extending that hub's already-linked non-regional (premium) airlines out to it. An airport
+// with no hub in range still gets its single closest hub, so nothing is left unreachable.
+function linkRegularAirportsToHubs(db: Database, insertLink: Statement, airports: AirportRow[]): void {
+  const hubs = airports.filter((a) => a.distanceHub);
+  const regularAirports = airports.filter((a) => !a.distanceHub);
+
+  const hubLinkRows = db.exec(`
+        SELECT airport_iata, airline_iata FROM airport_airlines WHERE regional = 0
+    `);
+  const airlinesByHub = new Map<string, string[]>();
+  for (const [hubIata, airlineIata] of (hubLinkRows[0]?.values ?? []) as [string, string][]) {
+    const airlines = airlinesByHub.get(hubIata);
+    if (airlines) {
+      airlines.push(airlineIata);
+    } else {
+      airlinesByHub.set(hubIata, [airlineIata]);
+    }
+  }
+
+  for (const airport of regularAirports) {
+    const hubsByDistance = hubs
+      .map((hub) => ({ hub, distance: haversineDistanceKm(airport, hub) }))
+      .sort((a, b) => a.distance - b.distance);
+
+    const inRange = hubsByDistance.filter((hd) => hd.distance <= REGULAR_AIRPORT_HUB_RADIUS_KM).map((hd) => hd.hub);
+    const targetHubs = inRange.length > 0 ? inRange : hubsByDistance.slice(0, 1).map((hd) => hd.hub);
+
+    for (const hub of targetHubs) {
+      for (const airlineIata of airlinesByHub.get(hub.iata) ?? []) {
+        insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airlineIata, ':regional': 0 });
+      }
+    }
+  }
+}
+
 // Every pair of hubs must share at least one airline, or a hub-to-hub route would be
 // impossible to construct. Stage 2 links each airline independently by range from its own
 // headquarters, so nothing else guarantees two hubs stay mutually reachable — this is a
@@ -237,12 +278,12 @@ function assertHubsFullyConnected(db: Database, hubs: AirportRow[]): void {
   }
 }
 
-// Stage 3 - close cross border: airport pairs in different countries but within the
+// Stage X - close cross border: airport pairs in different countries but within the
 // mean nearest-hub distance are connected with the union of airlines already serving
 // either side (e.g. from Stage 1). Still considered regional edges.
 function linkCrossBorderAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {}
 
-// Stage 4 - Last Mile Airports: Airports without Airlines yet should be served by ONE close regional airline.
+// Stage Y - Last Mile Airports: Airports without Airlines yet should be served by ONE close regional airline.
 // TODO: define in a future pass.
 function linkLastMileAirlines(): void {}
 
@@ -277,9 +318,12 @@ function linkAirportsToAirlines(
   );
 
   // Stage 3
+  linkRegularAirportsToHubs(db, insertLink, linkableAirports);
+
+  // Stage X
   linkCrossBorderAirlines(insertLink, normalAirports, meanHubDistanceKm);
 
-  // Stage 4
+  // Stage Y
   linkLastMileAirlines();
 
   insertLink.free();
