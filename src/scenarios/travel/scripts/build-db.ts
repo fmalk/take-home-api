@@ -101,12 +101,50 @@ function parseAirlines(filePath: string): AirlineRow[] {
   }));
 }
 
+/**
+ * Start of Airlines to Airports logic.
+ * Fictional and real airlines are two separate rosters, so this is run once per roster.
+ * Insertion follow Stages of logic.
+ */
+
 // Stage 1 - regional: every airport is served by every airline headquartered in the
-// same country, regardless of MIN/MAX. Fictional and real airlines are two separate
-// rosters, so this is run once per roster.
+// same country, regardless of MIN/MAX.
 function linkRegionalAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
   for (const airport of airports) {
     const regionalAirlines = roster.filter((a) => a.countryCode === airport.countryCode);
+
+    for (const airline of regionalAirlines) {
+      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
+    }
+  }
+}
+
+// Stage 2 - close cross border: TO BE DETERMINED. Still considered regional edges.
+function linkCrossBorderAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
+  for (const airport of airports) {
+    // TODO: logic
+
+    for (const airline of regionalAirlines) {
+      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
+    }
+  }
+}
+
+// Stage 3 - Hubs: Hubs are also served by BusinessClass and FirstClass airlines. Not considered regional edges.
+function linkHubAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
+  for (const airport of airports) {
+    // TODO: logic
+
+    for (const airline of regionalAirlines) {
+      insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 0 });
+    }
+  }
+}
+
+// Stage 4 - Last Mile Airports: Airports without Airlines yet should be served by ONE close regional airline.
+function linkLastMileAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
+  for (const airport of airports) {
+    // TODO: logic
 
     for (const airline of regionalAirlines) {
       insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airline.iata, ':regional': 1 });
@@ -125,8 +163,21 @@ function linkAirportsToAirlines(
         VALUES (:airport_iata, :airline_iata, :regional)
     `);
 
+  // Stage 1
   linkRegionalAirlines(insertLink, airports, fictionalAirlines);
   linkRegionalAirlines(insertLink, airports, realAirlines);
+
+  // Stage 2
+  linkCrossBorderAirlines(insertLink, airports, fictionalAirlines);
+  linkCrossBorderAirlines(insertLink, airports, realAirlines);
+
+  // Stage 3
+  linkHubAirlines(insertLink, airports, fictionalAirlines);
+  linkHubAirlines(insertLink, airports, realAirlines);
+
+  // Stage 4
+  linkLastMileAirlines(insertLink, airports, fictionalAirlines);
+  linkLastMileAirlines(insertLink, airports, realAirlines);
 
   insertLink.free();
 }
