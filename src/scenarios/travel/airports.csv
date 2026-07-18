@@ -237,7 +237,7 @@ HRG,HEGN,Hurghada International Airport,Hurghada,Egypt,EG,9.5,27.176776,33.79669
 KOA,PHKO,Ellison Onizuka Kona International Airport at Keahole,Kailua-Kona,United States of America,US,9.5,19.738783,-156.045603,-10,0,0
 BAH,OBBI,Bahrain International Airport,Manama,Bahrain,BH,9.4,26.267295,50.63764,3,0,0
 HER,LGIR,Heraklion International Nikos Kazantzakis Airport,Heraklion,Greece,GR,9.4,35.339699,25.1803,2,0,0
-LOS,DNMM,Murtala Muhammed International Airport,Lagos,Nigeria,NG,9.4,6.57737,3.32116,1,1,1
+LOS,DNMM,Murtala Muhammed International Airport,Lagos,Nigeria,NG,9.4,6.57737,3.32116,1,1,0
 RAK,GMMX,Menara Airport,Marrakech,Morocco,MA,9.3,31.606899,-8.0363,0,0,0
 VLC,LEVC,Valencia Airport,Valencia,Spain,ES,9.3,39.4893,-0.481625,1,0,0
 CVG,KCVG,Cincinnati Northern Kentucky International Airport,Cincinnati / Covington,United States of America,US,9.2,39.048801,-84.667801,-5,0,0
@@ -327,7 +327,7 @@ ANC,PANC,Ted Stevens Anchorage International Airport,Anchorage,United States of 
 DLM,LTBS,Dalaman International Airport,Dalaman,Turkey,TR,5.6,36.7131004333,28.7924995422,3,0,0
 FOR,SBFZ,Pinto Martins International Airport,Fortaleza,Brazil,BR,5.6,-3.775833,-38.532222,-3,0,0
 ABQ,KABQ,Albuquerque International Sunport,Albuquerque,United States of America,US,5.5,35.039976,-106.608925,-7,0,0
-ABV,DNAA,Nnamdi Azikiwe International Airport,Abuja,Nigeria,NG,5.5,9.00679,7.26317,1,1,1
+ABV,DNAA,Nnamdi Azikiwe International Airport,Abuja,Nigeria,NG,5.5,9.00679,7.26317,1,0,0
 PSA,LIRP,Pisa International Airport,Pisa,Italy,IT,5.5,43.683899,10.3927,1,0,0
 WLG,NZWN,Wellington International Airport,Wellington,New Zealand,NZ,5.5,-41.327202,174.804993,12,0,0
 COV,LTDB,Çukurova International Airport,Tarsus,Turkey,TR,5.4,36.890908,35.070522,3,0,0
