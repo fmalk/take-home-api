@@ -11,14 +11,15 @@ export const travelV1: Scenario = {
 
     openapi() {
         return {
-            '/api/travel/v1/airports': {
+            '/api/travel/v1/airports': ,
+            '/api/travel/v1/cities': {
                 get: {
-                    summary: 'List all airports',
-                    description: 'Get a complete list of all available airports',
+                    summary: 'List all cities',
+                    description: 'Get a complete list of all cities with available airports',
                     tags: ['Travel V1'],
                     responses: {
                         '200': {
-                            description: 'Successful airport list retrieval',
+                            description: 'Successful cities list retrieval',
                         },
                     },
                 },
@@ -32,14 +33,14 @@ export const travelV1: Scenario = {
                         {
                             name: 'from',
                             in: 'query',
-                            description: 'Departure city code (3 letters)',
+                            description: 'Departure airport code (3 letters IATA)',
                             required: true,
                             schema: { type: 'string' },
                         },
                         {
                             name: 'to',
                             in: 'query',
-                            description: 'Destination city code (3 letters)',
+                            description: 'Destination airport code (3 letters IATA)',
                             required: true,
                             schema: { type: 'string' },
                         },
