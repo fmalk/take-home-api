@@ -9,7 +9,7 @@ export function initLogger(level: string = 'info'): pino.Logger {
     level,
     timestamp: pino.stdTimeFunctions.isoTime,
     base: {
-      env: process.env.NODE_ENV || 'development',
+      // env: process.env.NODE_ENV || 'development',
     },
   };
 
@@ -20,7 +20,7 @@ export function initLogger(level: string = 'info'): pino.Logger {
         colorize: true,
         translateTime: 'HH:MM:ss Z',
         ignore: 'pid,hostname',
-        singleLine: false,
+        singleLine: !isDevelopment,
       },
     };
   }

@@ -36,6 +36,9 @@
   ],
   "author": "Fernando Piancastelli (at Cellide)",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@faker-js/faker": "^9.0.0",
     "@fastify/cors": "^11.3.0",
