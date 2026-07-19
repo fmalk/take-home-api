@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { ApiError } from '../../../types/index.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
-import { generateFlights } from './generator.js';
+import { generateFlights } from '../standard/generator.js';
 import { TravelStore } from '../standard/store.js';
 import { logFlow } from '../../../core/logger.js';
 import type { Flight, Airport, City } from '../standard/types.js';

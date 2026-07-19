@@ -11,4 +11,5 @@ export type V1Airline = Omit<
   Airline,
   'icao' | 'hasEconomyClass' | 'hasBusinessClass' | 'hasFirstClass' | 'hasLoyaltyProgram'
 >;
-export type V1Flight = Omit<Flight, 'seats' | 'pricing'>; // TODO: omit seats and price, but use "price" as flat number
+// Drops the class-broken-out shapes, keeping only the flat `price`/`available` fields.
+export type V1Flight = Omit<Flight, 'seats' | 'pricing'>;

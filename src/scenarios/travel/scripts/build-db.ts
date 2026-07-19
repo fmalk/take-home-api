@@ -124,7 +124,7 @@ function parseAirlines(filePath: string): AirlineRow[] {
  */
 
 function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const toRad = (deg: number):number => (deg * Math.PI) / 180;
+  const toRad = (deg: number): number => (deg * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;

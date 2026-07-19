@@ -87,6 +87,41 @@ export class TravelStore {
     return airlines;
   }
 
+  // A regional airline is one whose airport_airlines edge is flagged `regional` for that
+  // airport. If the same airline holds a regional edge at both ends, it can fly the pair direct.
+  async getRegionalAirlines(from: string, to: string): Promise<Airline[]> {
+    const db = await this.ensureDatabase();
+
+    const stmt = db.prepare(`
+      SELECT al.iata, al.icao, al.name, al.country, al.country_code, al.low_cost, al.first_class, al.business_class, al.loyalty
+      FROM airport_airlines aa1
+      JOIN airport_airlines aa2 ON aa2.airline_iata = aa1.airline_iata
+      JOIN airlines al ON al.iata = aa1.airline_iata
+      WHERE aa1.airport_iata = :from AND aa1.regional = 1
+        AND aa2.airport_iata = :to AND aa2.regional = 1
+    `);
+    stmt.bind({ ':from': from, ':to': to });
+
+    const airlines: Airline[] = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      airlines.push({
+        iata: row.iata as string,
+        icao: row.icao as string,
+        name: row.name as string,
+        country: row.country as string,
+        countryCode: row.country_code as string,
+        hasEconomyClass: Boolean(row.low_cost),
+        hasBusinessClass: Boolean(row.business_class),
+        hasFirstClass: Boolean(row.first_class),
+        hasLoyaltyProgram: Boolean(row.loyalty),
+      });
+    }
+    stmt.free();
+
+    return airlines;
+  }
+
   async getCities(): Promise<City[]> {
     const db = await this.ensureDatabase();
 
