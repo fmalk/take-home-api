@@ -1,58 +1,7 @@
 import { faker } from '@faker-js/faker';
-import type { Flight } from '../standard/types.js';
+import type { Flight, Route } from '../standard/types.js';
 
-const MEAN_HUB_DISTANCE_KM = 9000; // DO NOT remove this constant
-
-// TODO: refactor this entire file, it is outdated
-
-// TODO: remove this, use database
-const AIRLINES = ['United', 'American', 'Delta', 'Southwest', 'JetBlue', 'Alaska', 'Spirit'];
-
-// TODO: only allow IATA codes, from DB
-export function generateFlightId(from: string, to: string, date: string, index: number): string {
-  return `${from.toLowerCase()}-${to.toLowerCase()}-${date}-${index}`;
-}
-
-export function generateFlights(from: string, to: string, date: string, count: number = 5): Flight[] {
-  faker.seed(hashFlightQuery(from, to, date));
-
-  const flights: Flight[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const airline = faker.helpers.arrayElement(AIRLINES);
-    const flightNumber = faker.string.numeric(4);
-    const departureHour = faker.number.int({ min: 6, max: 22 });
-    const departureMinute = faker.helpers.arrayElement([0, 15, 30, 45]);
-    const flightDuration = faker.number.int({ min: 180, max: 480 });
-
-    const departure = `${String(departureHour).padStart(2, '0')}:${String(departureMinute).padStart(2, '0')}`;
-    const arrivalTime = new Date();
-    arrivalTime.setHours(departureHour);
-    arrivalTime.setMinutes(departureMinute + flightDuration);
-    const arrivalHour = arrivalTime.getHours();
-    const arrivalMinute = arrivalTime.getMinutes();
-    const arrival = `${String(arrivalHour).padStart(2, '0')}:${String(arrivalMinute).padStart(2, '0')}`;
-
-    const price = faker.number.int({ min: 100, max: 800 });
-    const available = faker.number.int({ min: 5, max: 180 });
-
-    flights.push({
-      id: generateFlightId(from, to, date, i),
-      from,
-      to,
-      date,
-      departure,
-      arrival,
-      airline,
-      flightNumber: `${airline.substring(0, 2).toUpperCase()}${flightNumber}`,
-      price,
-      available,
-    });
-  }
-
-  return flights;
-}
-
+// Keep this, useful for Faker
 function hashFlightQuery(from: string, to: string, date: string): number {
   const str = `${from}|${to}|${date}`;
   let hash = 0;
@@ -62,4 +11,34 @@ function hashFlightQuery(from: string, to: string, date: string): number {
     hash = hash & hash;
   }
   return Math.abs(hash);
+}
+
+// TODO: UUID is fine here
+export function generateId(): string {
+  return Math.random().toString(); // FIXME
+}
+
+export function findRoutes(from: string, to: string, date: string, count: number = 10): Route[] {
+  faker.seed(hashFlightQuery(from, to, date));
+
+  const flights: Flight[] = [];
+
+  // TODO: logic using airport_airlines
+  return [{
+    id: generateId(),
+    flightTimeHours: 1,
+    flightDistanceKms: 100,
+    departure: {
+      timestamp: date,
+      airport: from,
+    },
+    arrival: {
+      timestamp: date,
+      airport: to,
+    },
+    flights,
+    available: 10;
+    price: 10;
+    pricing: [];
+  }];
 }
