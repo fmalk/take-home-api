@@ -2,9 +2,9 @@ import Fastify, { FastifyInstance, FastifyRequest, LogController } from 'fastify
 import fastifyCors from '@fastify/cors';
 import fastifySwagger from '@fastify/swagger';
 import { randomUUID } from 'crypto';
-import { getLogger, logRequest } from './core/logger';
-import { ApiError } from './types';
-import { getRegisteredScenarios } from './core/scenario';
+import { getLogger, logRequest } from './core/logger.js';
+import { ApiError } from './types.js';
+import { getRegisteredScenarios } from './core/scenario.js';
 
 declare module 'fastify' {
   interface FastifyRequest {

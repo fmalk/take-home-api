@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { ApiError } from '../../../types/index.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
-import { findDirectFlights, groupRoutes } from '../standard/generator.js';
+import { findDirectFlights, findConnectingRoutes, groupRoutes } from '../standard/generator.js';
 import { TravelStore } from '../standard/store.js';
 import { logFlow } from '../../../core/logger.js';
 import type { Flight, Route, Airport, City } from '../standard/types.js';
@@ -50,15 +50,16 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
   let routesData = getCached<Route[]>(cacheKeyVal);
 
   if (!routesData) {
-    const flights = await findDirectFlights(from, to, date, 5);
-    const generated = groupRoutes(flights);
+    const direct = await findDirectFlights(from, to, date, 5);
+    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date, 5);
+    const generated = groupRoutes(sequences);
     setCached(cacheKeyVal, generated, CACHE_TTL);
 
     logFlow({
       reqId: request.id,
       flow: 'flight-search',
       step: 'generated',
-      data: { count: generated.length },
+      data: { count: generated.length, direct: direct.length > 0 },
     });
     routesData = generated;
   } else {
@@ -100,8 +101,9 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<Fli
   let routesData = getCached<Route[]>(cacheKeyVal);
 
   if (!routesData) {
-    const flights = await findDirectFlights(from, to, date, 5);
-    const generated = groupRoutes(flights);
+    const direct = await findDirectFlights(from, to, date, 5);
+    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date, 5);
+    const generated = groupRoutes(sequences);
     setCached(cacheKeyVal, generated, CACHE_TTL);
     routesData = generated;
   }

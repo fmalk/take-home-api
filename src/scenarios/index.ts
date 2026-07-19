@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { registerScenario } from '../core/scenario';
-import { travelV1 } from './travel/v1/index';
+import { registerScenario } from '../core/scenario.js';
+import { travelV1 } from './travel/v1/index.js';
 
 export async function registerScenarios(app: FastifyInstance): Promise<void> {
   registerScenario(travelV1);
