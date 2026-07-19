@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node src/scripts/dev.cjs",
     "start": "node dist/index.js",
     "build": "esbuild src/index.ts --bundle --platform=node --target=ES2022 --format=esm --outfile=dist/index.js --sourcemap",
     "preview": "npm run build && npm start",
