@@ -12,7 +12,7 @@ async function main(): Promise<void> {
 
     const app = await buildServer();
 
-    registerScenarios(app);
+    await registerScenarios(app);
 
     await app.listen({ port: config.PORT, host: config.HOST });
 
