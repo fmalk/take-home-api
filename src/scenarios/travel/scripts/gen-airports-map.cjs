@@ -154,6 +154,18 @@ const html = `<!DOCTYPE html>
             color: #3498db;
             font-weight: 500;
         }
+        .legend-item {
+            cursor: pointer;
+            padding: 4px 0;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .legend-item:hover {
+            opacity: 0.7;
+        }
+        .legend-item.inactive {
+            opacity: 0.4;
+        }
         .legend-dot {
             display: inline-block;
             width: 10px;
@@ -184,10 +196,10 @@ const html = `<!DOCTYPE html>
     <div id="stats">
         <div><span class="stat-label">Total Airports:</span> <span class="stat-value" id="airport-count">0</span></div>
         <div><span class="stat-label">Countries:</span> <span class="stat-value" id="country-count">0</span></div>
-        <div><span class="legend-dot" style="background:#3388ff;"></span>Standard</div>
-        <div><span class="legend-dot" style="background:#2ecc71;"></span>Hub</div>
-        <div><span class="legend-dot" style="background:#e67e22;"></span>Isolated</div>
-        <div><span class="legend-dot" style="background:#7b7b7b;"></span>Regional</div>
+        <div class="legend-item active" data-type="standard"><span class="legend-dot" style="background:#3388ff;"></span>Standard</div>
+        <div class="legend-item active" data-type="hub"><span class="legend-dot" style="background:#2ecc71;"></span>Hub</div>
+        <div class="legend-item active" data-type="isolated"><span class="legend-dot" style="background:#e67e22;"></span>Isolated</div>
+        <div class="legend-item active" data-type="regional"><span class="legend-dot" style="background:#7b7b7b;"></span>Regional</div>
     </div>
 
     <script>
@@ -200,6 +212,18 @@ const html = `<!DOCTYPE html>
         const airports = ${JSON.stringify(airports, null, 4)};
 
         const countrySet = new Set();
+        const markersByType = {
+            standard: [],
+            hub: [],
+            isolated: [],
+            regional: []
+        };
+        const visibility = {
+            standard: true,
+            hub: true,
+            isolated: true,
+            regional: true
+        };
 
         const greenIcon = new L.Icon({
             iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-green.png',
@@ -229,13 +253,17 @@ const html = `<!DOCTYPE html>
         });
 
         airports.forEach(airport => {
+            let type = 'standard';
             const markerOptions = { title: airport.iata };
             if (airport.isolated) {
                 markerOptions.icon = orangeIcon;
+                type = 'isolated';
             } else if (airport.distanceHub) {
                 markerOptions.icon = greenIcon;
+                type = 'hub';
             } else if (airport.regional) {
                 markerOptions.icon = greyIcon;
+                type = 'regional';
             }
             const marker = L.marker([airport.lat, airport.lng], markerOptions);
 
@@ -248,11 +276,28 @@ const html = `<!DOCTYPE html>
             marker.bindPopup(popupContent);
             marker.addTo(map);
 
+            markersByType[type].push(marker);
             countrySet.add(airport.country);
         });
 
         document.getElementById('airport-count').textContent = airports.length;
         document.getElementById('country-count').textContent = countrySet.size;
+
+        document.querySelectorAll('.legend-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const type = this.getAttribute('data-type');
+                visibility[type] = !visibility[type];
+                this.classList.toggle('inactive');
+
+                markersByType[type].forEach(marker => {
+                    if (visibility[type]) {
+                        marker.addTo(map);
+                    } else {
+                        map.removeLayer(marker);
+                    }
+                });
+            });
+        });
 
         if (airports.length > 0) {
             const bounds = L.latLngBounds(airports.map(a => [a.lat, a.lng]));
