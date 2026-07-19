@@ -283,15 +283,71 @@ export const flightResultSchema = {
   },
 };
 
+// Self-contained (no $ref) shape actually produced by findRoutes/generator.ts, used for the
+// search response so fastify's serializer doesn't strip the real route/flight fields down to
+// the old flat `flightResultSchema` shape.
+const routeResultFlightSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    flightTimeHours: { type: 'number' },
+    flightDistanceKms: { type: 'number' },
+    departure: {
+      type: 'object',
+      properties: {
+        timestamp: { type: 'string' },
+        airport: { type: 'string' },
+      },
+    },
+    arrival: {
+      type: 'object',
+      properties: {
+        timestamp: { type: 'string' },
+        airport: { type: 'string' },
+      },
+    },
+    travelInfo: {
+      type: 'object',
+      properties: {
+        airline: { type: 'string' },
+        plane: { type: 'string' },
+        flightNumber: { type: 'string' },
+      },
+    },
+    price: { type: 'number' },
+    available: { type: 'number' },
+  },
+};
+
+const routeResultSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    flightTimeHours: { type: 'number' },
+    flightDistanceKms: { type: 'number' },
+    departure: routeResultFlightSchema.properties.departure,
+    arrival: routeResultFlightSchema.properties.arrival,
+    flights: {
+      type: 'array',
+      items: routeResultFlightSchema,
+    },
+    available: { type: 'number' },
+    price: { type: 'number' },
+  },
+};
+
 export const baseSearchFlightsSchema = {
   querystring: searchFlightsQuerystring,
   response: {
     200: {
       type: 'object',
       properties: {
+        from: { type: 'string' },
+        to: { type: 'string' },
+        date: { type: 'string' },
         routes: {
           type: 'array',
-          items: flightResultSchema,
+          items: routeResultSchema,
         },
       },
     },

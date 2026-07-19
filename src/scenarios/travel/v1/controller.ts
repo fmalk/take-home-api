@@ -1,10 +1,10 @@
 import type { FastifyRequest } from 'fastify';
 import { ApiError } from '../../../types/index.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
-import { generateFlights } from '../standard/generator.js';
+import { findRoutes } from '../standard/generator.js';
 import { TravelStore } from '../standard/store.js';
 import { logFlow } from '../../../core/logger.js';
-import type { Flight, Airport, City } from '../standard/types.js';
+import type { Flight, Route, Airport, City } from '../standard/types.js';
 import type { V1Airport } from './types.js';
 
 const CACHE_TTL = 3600;
@@ -33,7 +33,7 @@ export type SearchFlightsRequest = FastifyRequest<{ Querystring: SearchFlightsQu
 export type FlightDetailRequest = FastifyRequest<{ Params: FlightIdParams }>;
 
 export interface SearchFlightsResult extends SearchFlightsQuery {
-  routes: Flight[];
+  routes: Route[];
 }
 
 export async function searchFlights(request: SearchFlightsRequest): Promise<SearchFlightsResult> {
@@ -47,10 +47,10 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
   });
 
   const cacheKeyVal = cacheKey(NAMESPACE, 'flights', from, to, date);
-  let flightsData = getCached<Flight[]>(cacheKeyVal);
+  let routesData = getCached<Route[]>(cacheKeyVal);
 
-  if (!flightsData) {
-    const generated = generateFlights(from, to, date, 5);
+  if (!routesData) {
+    const generated = await findRoutes(from, to, date, 5);
     setCached(cacheKeyVal, generated, CACHE_TTL);
 
     logFlow({
@@ -59,7 +59,7 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
       step: 'generated',
       data: { count: generated.length },
     });
-    flightsData = generated;
+    routesData = generated;
   } else {
     logFlow({
       reqId: request.id,
@@ -72,7 +72,7 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
     from,
     to,
     date,
-    routes: flightsData,
+    routes: routesData,
   };
 }
 
@@ -96,14 +96,15 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<Fli
   const date = parts.slice(2, -1).join('-');
 
   const cacheKeyVal = cacheKey(NAMESPACE, 'flights', from, to, date);
-  let flightsData = getCached<Flight[]>(cacheKeyVal);
+  let routesData = getCached<Route[]>(cacheKeyVal);
 
-  if (!flightsData) {
-    const generated = generateFlights(from, to, date, 5);
+  if (!routesData) {
+    const generated = await findRoutes(from, to, date, 5);
     setCached(cacheKeyVal, generated, CACHE_TTL);
-    flightsData = generated;
+    routesData = generated;
   }
 
+  const flightsData = routesData.flatMap((route) => route.flights);
   const flight = store.getFlight(flightsData, id);
 
   if (!flight) {
@@ -114,7 +115,7 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<Fli
     reqId: request.id,
     flow: 'flight-detail',
     step: 'lookup-found',
-    data: { id, airline: flight.airline },
+    data: { id, airline: flight.travelInfo.airline },
   });
 
   return flight;

@@ -44,6 +44,7 @@ interface AirlineRow {
   lowCost: boolean;
   firstClass: boolean;
   businessClass: boolean;
+  loyalty: boolean;
 }
 
 // Minimal RFC4180-ish CSV parser: handles quoted fields with embedded commas.
@@ -113,6 +114,7 @@ function parseAirlines(filePath: string): AirlineRow[] {
     lowCost: r[5] === '1',
     firstClass: r[6] === '1',
     businessClass: r[7] === '1',
+    loyalty: r[8] === '1',
   }));
 }
 
@@ -557,7 +559,8 @@ async function buildDb(): Promise<void> {
             is_real INTEGER NOT NULL,
             low_cost INTEGER NOT NULL,
             first_class INTEGER NOT NULL,
-            business_class INTEGER NOT NULL
+            business_class INTEGER NOT NULL,
+            loyalty INTEGER NOT NULL
         );
         CREATE UNIQUE INDEX idx_airlines_icao ON airlines (icao);
 
@@ -595,8 +598,8 @@ async function buildDb(): Promise<void> {
   insertAirport.free();
 
   const insertAirline = db.prepare(`
-        INSERT INTO airlines (iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class)
-        VALUES (:iata, :icao, :name, :country, :country_code, :is_real, :low_cost, :first_class, :business_class)
+        INSERT INTO airlines (iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class, loyalty)
+        VALUES (:iata, :icao, :name, :country, :country_code, :is_real, :low_cost, :first_class, :business_class, :loyalty)
     `);
   for (const airline of fictionalAirlines) {
     insertAirline.run({
@@ -609,6 +612,7 @@ async function buildDb(): Promise<void> {
       ':low_cost': airline.lowCost ? 1 : 0,
       ':first_class': airline.firstClass ? 1 : 0,
       ':business_class': airline.businessClass ? 1 : 0,
+      ':loyalty': airline.loyalty ? 1 : 0,
     });
   }
   for (const airline of realAirlines) {
@@ -622,6 +626,7 @@ async function buildDb(): Promise<void> {
       ':low_cost': airline.lowCost ? 1 : 0,
       ':first_class': airline.firstClass ? 1 : 0,
       ':business_class': airline.businessClass ? 1 : 0,
+      ':loyalty': airline.loyalty ? 1 : 0,
     });
   }
   insertAirline.free();
