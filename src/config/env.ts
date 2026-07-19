@@ -24,7 +24,7 @@ function getEnvNumber(key: string, defaultValue: number): number {
   return num;
 }
 
-function getEnvBool(key: string, defaultValue: boolean): boolean {
+export function getEnvBool(key: string, defaultValue: boolean): boolean {
   const value = process.env[key];
   if (!value) return defaultValue;
   return value === 'true' || value === '1' || value === 'yes';

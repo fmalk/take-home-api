@@ -3,9 +3,15 @@ import { fileURLToPath } from 'url';
 import type { Database } from 'sql.js';
 import type { Flight, Airport, City, Airline } from './types.js';
 import { getDatabase, openDatabase } from '../../../core/db.js';
+import { getEnvBool } from '../../../config/env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRAVEL_DIR = path.resolve(__dirname, '..');
+
+// Fixed for the process lifetime, not a per-request option: whether flight/airline data
+// draws from real-world airlines (real_airlines.csv) or only the fictional roster
+// (fictional_airlines.csv). Set at container build/start time, see Dockerfile.
+const USE_REAL_AIRLINES = getEnvBool('TRAVEL_USE_REAL_AIRLINES', false);
 
 export class TravelStore {
   constructor() {}
@@ -61,8 +67,9 @@ export class TravelStore {
     const db = await this.ensureDatabase();
 
     const stmt = db.prepare(
-      'SELECT iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class, loyalty FROM airlines WHERE is_real = 1', // FIXME: pass as paramenter
+      'SELECT iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class, loyalty FROM airlines WHERE is_real = :is_real',
     );
+    stmt.bind({ ':is_real': USE_REAL_AIRLINES ? 1 : 0 });
     const airlines: Airline[] = [];
 
     while (stmt.step()) {
