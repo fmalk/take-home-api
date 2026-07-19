@@ -7,6 +7,7 @@
 - Airline names, codes, and other related metadata are fictional; this was to allow the project to adjust edge cases, considerations, rules and constraints that has no bearing to the real world counterparts;
   - Real airlines names are presented as files that can be loaded; default are fictious names
   - Airline names are used solely as fictional data for educational purposes. **This project is not affiliated with or endorsed by any airline**.
+  - Logos are intentionally generated placeholder monograms rather than reproductions of airline trademarks.
 - Airport and Airlines metadata are conceptual choices, made for educational purposes and to better illustrate real-world cases.
 - CSV files in this repository are for informational purposes; they contain real world information, readily available public information.
   - This project claims **no responsibility for information correctness**

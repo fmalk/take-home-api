@@ -22,7 +22,7 @@ export function generateId(): string {
 }
 
 function haversineKm(a: { lat: number; long: number }, b: { lat: number; long: number }): number {
-  const R = 6371;
+  const R = 6371; // Earth radius
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
   const dLon = toRad(b.long - a.long);
