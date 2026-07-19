@@ -210,6 +210,9 @@ function linkHubAirlines(insertLink: Statement, airports: AirportRow[], roster: 
 }
 
 // FIXME: Refactor this logic, not every hub will connect to one another, MAX_HUB_RANGE_KM is now shorter.
+// Possible fix: check that every hub has at least another hub within MAX_HUB_RANGE_KM. At least one
+// non-regional airline should be shared among them.
+
 // Every pair of hubs must share at least one airline, or a hub-to-hub route would be
 // impossible to construct. Stage 2 links each airline independently by range from its own
 // headquarters, so nothing else guarantees two hubs stay mutually reachable — this is a
@@ -325,6 +328,20 @@ function linkLastMileAirlines(
   }
 }
 
+// Every non-isolated airport must end up with at least one airline once all stages have run, or
+// a route touching it would be impossible to construct. Isolated airports are the only ones
+// intentionally left unserved.
+function assertOnlyIsolatedAirportsUnserved(db: Database, airports: AirportRow[]): void {
+  const rows = db.exec('SELECT DISTINCT airport_iata FROM airport_airlines');
+  const served = new Set((rows[0]?.values ?? []).map(([iata]) => iata as string));
+
+  const unserved = airports.filter((a) => !a.isolated && !served.has(a.iata)).map((a) => a.iata);
+
+  if (unserved.length > 0) {
+    throw new Error(`${unserved.length} non-isolated airport(s) were left without any airline: ${unserved.join(', ')}`);
+  }
+}
+
 // The mean distance from each non-hub airport to its nearest hub (distance_hub = true).
 // This is the "direct flight vs. layover through a hub" standard: below this distance,
 // treat a route as directly flyable; at or above it, prefer routing through the nearest hub.
@@ -381,7 +398,7 @@ function linkAirportsToAirlines(
   // Stage 4
   linkLastMileAirlines(db, insertLink, normalAirports, regionalAirports);
 
-  // TODO: insert assertion about at least one airline at all but isolated airports.
+  assertOnlyIsolatedAirportsUnserved(db, airports);
 
   insertLink.free();
 }
