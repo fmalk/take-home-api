@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node src/scripts/dev.cjs",
     "start": "node dist/index.js",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=ES2022 --format=esm --outfile=dist/index.js --sourcemap",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=ES2022 --format=esm --outfile=dist/index.js --sourcemap --external:pino --external:pino-pretty --external:@fastify/cors --external:@fastify/swagger --external:@fastify/swagger-ui --external:fastify --external:node-cache --external:sql.js --external:@faker-js/faker",
     "preview": "npm run build && npm start",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
