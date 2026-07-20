@@ -73,6 +73,28 @@ function makeFlight(from: Airport, to: Airport, date: string, airline: Airline):
   };
 }
 
+// Path Flow builds the same logical leg (departure airport + arrival airport + date +
+// airline) repeatedly across different gateway/hub-path/airline-combination branches — e.g.
+// every route combination that shares a route's first hub leg should point at the exact same
+// Flight instance (same id, same eventual timestamps), not a freshly minted lookalike. Cache
+// by (from, to, date, airline) within a single findDirectFlights/findConnectingRoutes call so
+// combinatorial expansion reuses instances instead of duplicating them.
+type FlightCache = Map<string, Flight>;
+
+function flightCacheKey(from: string, to: string, date: string, airline: string): string {
+  return `${from}|${to}|${date}|${airline}`;
+}
+
+function getOrMakeFlight(cache: FlightCache, from: Airport, to: Airport, date: string, airline: Airline): Flight {
+  const key = flightCacheKey(from.iata, to.iata, date, airline.iata);
+  let flight = cache.get(key);
+  if (!flight) {
+    flight = makeFlight(from, to, date, airline);
+    cache.set(key, flight);
+  }
+  return flight;
+}
+
 // `count` will gate how many routes are returned once multi-route/layover logic lands.
 export async function findDirectFlights(from: string, to: string, date: string, _count: number = 10): Promise<Flight[]> {
   faker.seed(hashFlightQuery(from, to, date));
@@ -99,6 +121,7 @@ async function reduceToHub(
   airport: Airport,
   date: string,
   direction: 'outbound' | 'inbound',
+  flightCache: FlightCache,
 ): Promise<GatewayCandidate[]> {
   if (airport.isHub) {
     return [{ hub: airport, edges: [] }];
@@ -121,10 +144,12 @@ async function reduceToHub(
       if (airlines.length === 0) continue;
       const airline = faker.helpers.arrayElement(airlines);
       const connector =
-        direction === 'outbound' ? makeFlight(airport, regular, date, airline) : makeFlight(regular, airport, date, airline);
+        direction === 'outbound'
+          ? getOrMakeFlight(flightCache, airport, regular, date, airline)
+          : getOrMakeFlight(flightCache, regular, airport, date, airline);
 
       // Recurse: the regular connector airport still needs to reach a proper Hub.
-      const downstream = await reduceToHub(regular, date, direction);
+      const downstream = await reduceToHub(regular, date, direction, flightCache);
       for (const gw of downstream) {
         results.push({
           hub: gw.hub,
@@ -147,7 +172,9 @@ async function reduceToHub(
   if (airlines.length === 0) return [];
   const airline = faker.helpers.arrayElement(airlines);
   const edge =
-    direction === 'outbound' ? makeFlight(airport, nearest.hub, date, airline) : makeFlight(nearest.hub, airport, date, airline);
+    direction === 'outbound'
+      ? getOrMakeFlight(flightCache, airport, nearest.hub, date, airline)
+      : getOrMakeFlight(flightCache, nearest.hub, airport, date, airline);
 
   return [{ hub: nearest.hub, edges: [edge] }];
 }
@@ -233,8 +260,9 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
   // Isolated airports don't receive civilian flights.
   if (fromAirport.isIsolated || toAirport.isIsolated) return [];
 
-  const starts = await reduceToHub(fromAirport, date, 'outbound');
-  const ends = await reduceToHub(toAirport, date, 'inbound');
+  const flightCache: FlightCache = new Map();
+  const starts = await reduceToHub(fromAirport, date, 'outbound', flightCache);
+  const ends = await reduceToHub(toAirport, date, 'inbound', flightCache);
   if (starts.length === 0 || ends.length === 0) return [];
 
   const routes: Flight[][] = [];
@@ -266,11 +294,13 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
 
       if (legAirlines.length === 0) continue;
 
-      // Generate routes for every airline combination across all hub legs.
+      // Generate routes for every airline combination across all hub legs. Legs shared by
+      // multiple combinations (e.g. the first hub leg when only a later leg's airline
+      // varies) resolve to the same cached Flight instance via getOrMakeFlight.
       for (const airlineCombination of generateAirlineCombinations(legAirlines)) {
         const hubLegs: Flight[] = [];
         for (let i = 0; i < hubPath.length - 1; i++) {
-          hubLegs.push(makeFlight(hubPath[i], hubPath[i + 1], date, airlineCombination[i]));
+          hubLegs.push(getOrMakeFlight(flightCache, hubPath[i], hubPath[i + 1], date, airlineCombination[i]));
         }
         routes.push([...start.edges, ...hubLegs, ...end.edges]);
         if (routes.length >= MAX_ROUTES) return routes;
@@ -355,6 +385,14 @@ function formatLocalTimestamp(utcMillis: number, utcOffset: number): string {
 // concern). Each Route's own first-leg departure is spread evenly across the valid departure
 // window for `date`; subsequent leg timestamps then follow sequentially from Flight Duration
 // and Connection Time.
+//
+// Path Flow now hands back sequences that share Flight *instances* (same object, same id)
+// wherever combinations overlap on a leg (see getOrMakeFlight) — e.g. two Routes that only
+// differ on their last leg still point at the identical first N Flight objects. Timestamping
+// must respect that: a shared Flight gets its departure/arrival computed exactly once (the
+// first time it's reached) and every other sequence that references it reuses the result
+// instead of overwriting it with a different, index-derived time. Departure-window spacing is
+// therefore distributed across the distinct *first* Flight instances, not one slot per Route.
 export async function applyTimeFlow(sequences: Flight[][], date: string): Promise<Flight[][]> {
   const now = Date.now();
   const airportCache = new Map<string, Airport | undefined>();
@@ -365,18 +403,46 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
     return airportCache.get(iata);
   };
 
-  for (const [index, sequence] of sequences.entries()) {
+  const timestamped = new Map<Flight, { departureInstant: number; arrivalInstant: number }>();
+
+  const rootFlights: Flight[] = [];
+  const rootIndex = new Map<Flight, number>();
+  for (const sequence of sequences) {
+    if (sequence.length === 0) continue;
+    const root = sequence[0];
+    if (!rootIndex.has(root)) {
+      rootIndex.set(root, rootFlights.length);
+      rootFlights.push(root);
+    }
+  }
+
+  for (const sequence of sequences) {
     if (sequence.length === 0) continue;
 
-    const departureAirport = await getAirport(sequence[0].departure.airport);
-    if (!departureAirport) continue;
+    const rootFlight = sequence[0];
+    const alreadyRooted = timestamped.get(rootFlight);
+    let cursor: number;
 
-    const window = departureWindow(date, departureAirport.utcOffset, now);
-    const spacing = (window.end - window.start) / sequences.length;
-    let cursor = window.start + index * spacing;
+    if (alreadyRooted) {
+      cursor = alreadyRooted.departureInstant;
+    } else {
+      const departureAirport = await getAirport(rootFlight.departure.airport);
+      if (!departureAirport) continue;
+
+      const window = departureWindow(date, departureAirport.utcOffset, now);
+      const spacing = (window.end - window.start) / rootFlights.length;
+      cursor = window.start + rootIndex.get(rootFlight)! * spacing;
+    }
 
     for (let i = 0; i < sequence.length; i++) {
       const flight = sequence[i];
+      const existing = timestamped.get(flight);
+
+      if (existing) {
+        cursor = existing.arrivalInstant;
+        continue;
+      }
+
       const fromAirport = await getAirport(flight.departure.airport);
       const toAirport = await getAirport(flight.arrival.airport);
       if (!fromAirport || !toAirport) continue;
@@ -386,9 +452,11 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
 
       flight.departure.timestamp = formatLocalTimestamp(departureInstant, fromAirport.utcOffset);
       flight.arrival.timestamp = formatLocalTimestamp(arrivalInstant, toAirport.utcOffset);
+      timestamped.set(flight, { departureInstant, arrivalInstant });
 
+      cursor = arrivalInstant;
       if (i < sequence.length - 1) {
-        cursor = arrivalInstant + makeConnectionHours(toAirport) * 3600_000;
+        cursor += makeConnectionHours(toAirport) * 3600_000;
       }
     }
   }

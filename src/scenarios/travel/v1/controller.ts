@@ -3,6 +3,7 @@ import { ApiError } from '../../../types/index.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
 import { findDirectFlights, findConnectingRoutes, applyTimeFlow, groupRoutes } from '../standard/generator.js';
 import { TravelStore } from '../standard/store.js';
+import { storeRoutes, getStoredFlight } from '../standard/instance-store.js';
 import { logFlow } from '../../../core/logger.js';
 import type { Flight, Route, Airport, City } from '../standard/types.js';
 import type { V1Airport, V1Flight, V1Route } from './types.js';
@@ -72,6 +73,11 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
     });
   }
 
+  // Refresh the short-lived by-ID instance store on every access (cache hit or miss) so
+  // Flights/Routes shown in this response stay resolvable by ID (seat/price selection,
+  // flight detail) for the instance TTL from now, not just from when they were first generated.
+  storeRoutes(routesData);
+
   return {
     from,
     to,
@@ -90,29 +96,9 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<V1F
     data: { id },
   });
 
-  const parts = id.split('-');
-  if (parts.length < 4) {
-    throw new ApiError(400, 'INVALID_FLIGHT_ID', 'Invalid flight ID format');
-  }
-
-  const from = parts[0].toUpperCase();
-  const to = parts[1].toUpperCase();
-  const date = parts.slice(2, -1).join('-');
-
-  const cacheKeyVal = cacheKey(NAMESPACE, 'flights', from, to, date);
-  let routesData = getCached<Route[]>(cacheKeyVal);
-
-  if (!routesData) {
-    const direct = await findDirectFlights(from, to, date, 5);
-    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date);
-    const timed = await applyTimeFlow(sequences, date);
-    const generated = groupRoutes(timed);
-    setCached(cacheKeyVal, generated, CACHE_TTL);
-    routesData = generated;
-  }
-
-  const flightsData = routesData.flatMap((route) => route.flights);
-  const flight = store.getFlight(flightsData, id);
+  // Flights only live in the short-lived by-ID instance store (populated by searchFlights);
+  // there's no from/to/date to reconstruct a query from — the id carries no route info.
+  const flight = getStoredFlight(id);
 
   if (!flight) {
     throw new ApiError(404, 'FLIGHT_NOT_FOUND', 'Flight not found');
