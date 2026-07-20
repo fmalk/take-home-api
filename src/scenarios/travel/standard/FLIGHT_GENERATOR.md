@@ -20,6 +20,8 @@ The goal is NOT precision, accuracy, or efficiency in finding "best paths". Ther
   - build-db.ts links each hub to airlines whose headquarters sit within a distance threshold (MAX_HUB_RANGE_KM ≈ 6000 km). Two hubs on opposite sides of one HQ's range can end up ~12,000 km apart via that HQ.
   - Isolated hub clusters (e.g. HNL in the Pacific) get one intentional bridge edge with no distance check, purely to keep the hub graph connected.
   - Path-finding must therefore consider multi-hop hub traversals, not assume every hub pair has a direct airline link.
+- Aircraft performance is not an input to flight time.
+  - Aircrafts are chosen by category related to the edges.
 
 ## Nomenclature:
 
@@ -89,3 +91,7 @@ To be determined. Currently all Flights have 0 available seats and a single seat
 ## Pricing
 
 To be determined. Currently all Flights have $0 price. Pricing per cabin class and dynamic pricing (e.g. by distance, airline, class) will be enriched here once modeled.
+
+## Equipment Generation
+
+To be determined.

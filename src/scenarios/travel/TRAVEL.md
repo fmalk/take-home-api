@@ -8,12 +8,14 @@
   - Real airlines names are presented as files that can be loaded; default are fictious names
   - Airline names are used solely as fictional data for educational purposes. **This project is not affiliated with or endorsed by any airline**.
   - Logos are intentionally generated placeholder monograms rather than reproductions of airline trademarks.
+- Aircraft manufacturers and model names are from product descriptions, for educational purposes. **This project is not affiliated with or endorsed by any aircraft manufacturer**.
 - Airport and Airlines metadata are conceptual choices, made for educational purposes and to better illustrate real-world cases.
-- CSV files in this repository are for informational purposes; they contain real world information, readily available public information.
+  - Same as with aircraft selection, they were conceptual choices to illustrate use cases when looking at flight info.
+- CSV files in this repository are for informational purposes; they contain real world information, readily available to the public.
   - This project claims **no responsibility for information correctness**
   - Metadata around them are fictional.
 - **All generated flight data is mocked**, there's no correlation to any real past, present or future flight.
-- The three main travel CSV files are the source of truth, read-only by the engine. The `travel.sqlite` is buildable from the CSV files, and the runtime uses it also as read-only.
+- The four main travel CSV files are the source of truth, read-only by the engine. The `travel.sqlite` is buildable from the CSV files, and the runtime uses it also as read-only.
 
 ## Validations
 
@@ -48,10 +50,14 @@ In advanced scenarios, look out for:
 
 - `airports` — one row per airport CSV row, keyed by IATA code (ICAO is unique-indexed).
 - `airlines` — both fictional and real rosters in one table, keyed by IATA code (ICAO unique-indexed), flagged by `is_real`.
+- `aircraft` — a selection of planes to be used by flights.
 - `airport_airlines` — assumed airline coverage per airport (not sourced from anywhere real).
   - Each airport is linked to a few airlines, with busier airports (by `passengers_monthly`) getting more coverage.
   - Assignment is deterministic, so rebuilding the database is reproducible.
 
 ## References
 
-Airports information: https://www.world-airport-codes.com/alphabetical/airport-code Airlines information: https://en.wikipedia.org/wiki/Lists_of_airlines Biggest airports by passengers information: https://www.bigairports.com/data/
+- Airports information: https://www.world-airport-codes.com/alphabetical/airport-code (glad to link back, folks)
+- Airlines information: https://en.wikipedia.org/wiki/Lists_of_airlines
+- Biggest airports by passengers information: https://www.bigairports.com/data/ (glad to link back, folks)
+- Aircraft information: https://en.wikipedia.org/wiki/List_of_commercial_jet_airliners

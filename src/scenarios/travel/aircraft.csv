@@ -1,0 +1,11 @@
+manufacturer,aircraft,type,capacity
+ATR,72,small,70
+De Havilland,Dash 8 Q400,small,78
+Embraer,E175,small,88
+Embraer,E195-E2,small,132
+Airbus,A320,medium,180
+Airbus,A350,large,325
+Airbus,A380,large,550
+Boeing,737,medium,189
+Boeing,787 Dreamliner,medium,290
+Boeing,777,large,365
