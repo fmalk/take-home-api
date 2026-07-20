@@ -42,7 +42,7 @@ export interface Airline {
 export interface Pricing {
   currency: string;
   available: number;
-  regular?: number;
+  regular: number;
   economy?: number;
   businessClass?: number;
   firstClass?: number;
@@ -65,9 +65,9 @@ export interface Flight {
     aircraft: string;
     flightNumber: string;
   };
-  available: number;
   price: number; // simpler scenarios
   pricing: Pricing[];
+  available: number;
 }
 
 export interface Route {
