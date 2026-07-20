@@ -84,7 +84,38 @@ After a valid Flight[] sequence is built (direct or via hub path), aggregate Fli
 
 ## Time Flow
 
-To be determined. Currently all Flights use the query date as both departure and arrival timestamp (no duration modeling).
+Enriches each Route's Flight[] with realistic departure/arrival timestamps and generates route copies across the day's available departure slots.
+
+### Flight Duration
+
+- Distance is the primary input: assume a fixed reasonable cruise velocity (e.g. ~800 km/h) and derive a base duration per leg from `flightDistanceKms`.
+- Apply a small random delta (e.g. ±5–10%) per leg, independently, so identical-distance legs don't produce identical durations.
+- Aircraft performance remains irrelevant to timing (see Design) — the delta is flavor noise, not a simulated performance difference.
+
+### Connection Time
+
+- Between consecutive legs of a Route, insert a layover:
+  - **Non-hub edges** (regional/standard connectors): 30–180 minutes.
+  - **Hub edges**: 4–7 hours, reflecting the longer-haul nature of hub-to-hub hops.
+- Layover duration is randomized per connection within its range, added between the arrival of one leg and the departure of the next.
+
+### Departure Windows & Availability
+
+- Flights in the past are never offered.
+- If the search date is the current day, the earliest valid departure is 6 hours from the current time (per airport-local clock).
+  - If that 6-hour floor falls past the end of the current day's departure schedule (last slot before midnight), no current-day flights are offered — the earliest available departures roll over to the next day's full schedule instead.
+- If the search date is a future day, the full day's schedule (starting 5AM local) is available with no time-of-day restriction.
+
+### Daily Schedule & Route Copies
+
+- A "full" day of departures for a given edge starts at 5AM local and offers roughly 20 evenly-spaced departure slots through the day.
+- Time Flow expands the Path Flow route collection by generating route copies per valid departure slot, each copy re-deriving its own leg timestamps (duration + connection time) from that slot's departure onward.
+- Route copies are filtered by the Departure Windows & Availability rules above before being passed downstream.
+
+### Timestamp Presentation
+
+- All Flight timestamps are computed and stored local to their airport (departure time local to the departure airport, arrival time local to the arrival airport).
+- Timestamps are presented with explicit UTC offset info (e.g. ISO 8601 with offset) rather than converted to a single shared timezone, so two legs in the same Route may carry different offsets.
 
 ## Seat Offering
 
