@@ -22,6 +22,8 @@ The goal is NOT precision, accuracy, or efficiency in finding "best paths". Ther
   - Path-finding must therefore consider multi-hop hub traversals, not assume every hub pair has a direct airline link.
 - Aircraft performance is not an input to flight time.
   - Aircrafts are chosen by category related to the edges.
+- Flights for the past are not possible.
+  - Flights for the current day start at 6 hours to the future (using epoch time) at minimum, related to starting airport.
 
 ## Nomenclature:
 
