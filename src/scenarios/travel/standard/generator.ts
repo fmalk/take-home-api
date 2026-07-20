@@ -76,7 +76,6 @@ function makeFlightNumber(airlineIata: string): string {
 function makeFlight(from: Airport, to: Airport, date: string, airline: Airline, aircraftList: Aircraft[]): Flight {
   const flightDistanceKms = haversineKm(from, to);
   const aircraft = pickAircraft(from, to, aircraftList);
-  const available = faker.number.int({ min: 10, max: aircraft.capacity });
   return {
     id: generateId(),
     flightTimeHours: makeDurationHours(flightDistanceKms),
@@ -95,8 +94,9 @@ function makeFlight(from: Airport, to: Airport, date: string, airline: Airline, 
       flightNumber: makeFlightNumber(airline.iata),
     },
     price: 0,
-    pricing: [{ currency: 'USD', available, regular: 0 }],
-    available,
+    pricing: [{ currency: 'USD', regular: 0 }],
+    available: aircraft.capacity,
+    seats: [{ regular: 0 }],
   };
 }
 

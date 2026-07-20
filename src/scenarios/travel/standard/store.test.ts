@@ -17,8 +17,9 @@ function makeFlight(overrides: Partial<Flight> = {}): Flight {
     arrival: { timestamp: '2026-01-01T10:00:00Z', airport: 'LAX' },
     travelInfo: { airline: 'AA', aircraft: '737', flightNumber: 'AA100' },
     price: 199,
-    pricing: [{ currency: 'USD', available: 10, regular: 199 }],
+    pricing: [{ currency: 'USD', regular: 199 }],
     available: 10,
+    seats: [{ regular: 10 }],
     ...overrides,
   };
 }
