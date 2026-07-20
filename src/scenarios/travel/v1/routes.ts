@@ -55,7 +55,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     '/api/travel/v1/search',
     {
       schema: searchFlightsSchema,
-      onSend: (_request, reply) => {
+      onSend: async (_request, reply) => {
         // Flight IDs in search results are only resolvable for ~4:30 min (instance store TTL = 5 min).
         // Signal this to clients/proxies so they know to refresh if fetching flight details later.
         reply.header('Cache-Control', 'public, max-age=270');
