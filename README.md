@@ -24,7 +24,18 @@ We would use those as input to Take Home Coding challenges. We were a mobile-foc
 2. **Learn how a REST API works** by following real use-case flows.
 3. **Write integration tests** against a live, realistic target.
 4. **Take Home assessments**: go to /docs to check how to use the API.
-5. _Near-Future_: use the provided MCP server for your AI agents.
+5. *Near-Future*: use the provided MCP server for your AI agents.
+
+Inspirations
+
+Some fake/mock APIs are very well known. This project serves a similar purpose:
+
+- https://jsonplaceholder.typicode.com
+- https://fakestoreapi.com
+- https://dummyjson.com
+- https://reqres.in — the closest in scope
+
+However, this project aim for a much more robust API flow and usage, and more complex but well understood real world applications.
 
 ## Scenarios
 
@@ -37,7 +48,7 @@ Each scenario is a self-contained API namespace, versioned by how much of the do
 /api/travel/v4 → aimed at a deeper understanding of real-world edge cases and complex data management
 ```
 
-Every scenario ships with an OpenAPI/Swagger spec and a set of static reference data (cities, airports, products, venues, etc.); transactional data (flights, bookings, schedules, prices) is generated on-the-fly per request. Cache storage can remember sessions for a limited time, to allow real, stateful data: shop carts, temporary reserved seats, date restrictions.
+Every scenario ships with an OpenAPI/Swagger spec and a set of static reference data (cities, airports, products, venues, etc.); transactional data (flights, bookings, schedules, prices) is generated on-the-fly per request. Cache storage can remember sessions for a limited time, to allow real, stateful data: IDs, shop carts, temporary reserved seats, date restrictions.
 
 ## Getting started
 
@@ -47,7 +58,7 @@ You can run the API via docker image locally:
 docker run <image>
 ```
 
-_(image name and instructions to be added once published to Docker Hub)._
+*(image name and instructions to be added once published to Docker Hub).*
 
 You can also consume it free at:
 
@@ -55,7 +66,7 @@ You can also consume it free at:
 https://app.takehome.codes/api
 ```
 
-_(Open server to be determined later. Throttling limits apply)._
+*(Open server to be determined later. Throttling limits apply).*
 
 ## Disclaimer
 
