@@ -196,11 +196,17 @@ async function findBestHubPath(startHub: Airport, endHub: Airport): Promise<Airp
   return (await findHubPath(startHub, endHub, MAX_HUB_HOP_KM)) ?? findHubPath(startHub, endHub);
 }
 
+// Path Flow returns one Route per combination found (every start-gateway x end-gateway x
+// first-hub-leg-airline combination), not a sampled subset — trimming is a later Normalization
+// concern. MAX_ROUTES is a hard safety cap only; a real route explosion this large should never
+// happen given the ~17-node hub graph and small per-airport gateway/airline fan-out.
+const MAX_ROUTES = 1000;
+
 // Second pass: when no direct regional flight exists, build routes via a starting Hub and
 // a destination Hub per FLIGHT_GENERATOR.md Path Flow. Each returned Flight[] is one
 // ordered leg-sequence for a single Route (regional→regular→hub → hub-path → hub→regular→regional,
 // with degenerate cases when either end is already a Hub or regular).
-export async function findConnectingRoutes(from: string, to: string, date: string, count: number = 3): Promise<Flight[][]> {
+export async function findConnectingRoutes(from: string, to: string, date: string): Promise<Flight[][]> {
   faker.seed(hashFlightQuery(from, to, date));
 
   const fromAirport = await store.getAirport(from);
@@ -220,7 +226,7 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
         const seq = [...start.edges, ...end.edges];
         if (seq.length > 0) {
           routes.push(seq);
-          if (routes.length >= count) return routes;
+          if (routes.length >= MAX_ROUTES) return routes;
         }
         continue;
       }
@@ -230,7 +236,7 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
 
       const firstLegAirlines = await store.getConnectingAirlines(hubPath[0].iata, hubPath[1].iata);
       const shuffled = faker.helpers.shuffle(firstLegAirlines);
-      for (const firstAirline of shuffled.slice(0, count)) {
+      for (const firstAirline of shuffled) {
         const hubLegs: Flight[] = [];
         for (let i = 0; i < hubPath.length - 1; i++) {
           const legAirline =
@@ -238,7 +244,7 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
           hubLegs.push(makeFlight(hubPath[i], hubPath[i + 1], date, legAirline));
         }
         routes.push([...start.edges, ...hubLegs, ...end.edges]);
-        if (routes.length >= count) return routes;
+        if (routes.length >= MAX_ROUTES) return routes;
       }
     }
   }

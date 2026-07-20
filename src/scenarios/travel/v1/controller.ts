@@ -51,7 +51,7 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
 
   if (!routesData) {
     const direct = await findDirectFlights(from, to, date, 5);
-    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date, 5);
+    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date);
     const timed = await applyTimeFlow(sequences, date);
     const generated = groupRoutes(timed);
     setCached(cacheKeyVal, generated, CACHE_TTL);
@@ -103,7 +103,7 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<Fli
 
   if (!routesData) {
     const direct = await findDirectFlights(from, to, date, 5);
-    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date, 5);
+    const sequences: Flight[][] = direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date);
     const timed = await applyTimeFlow(sequences, date);
     const generated = groupRoutes(timed);
     setCached(cacheKeyVal, generated, CACHE_TTL);
