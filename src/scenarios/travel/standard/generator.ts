@@ -31,20 +31,35 @@ function haversineKm(a: { lat: number; long: number }, b: { lat: number; long: n
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-// Stub edge factory. Time/distance/pricing/seat enrichment happens in later Search-Flow
-// stages that are still `To be determined` in FLIGHT_GENERATOR.md.
-function makeFlight(fromIata: string, toIata: string, date: string, airline: Airline): Flight {
+// FLIGHT_GENERATOR.md Time Flow: Flight Duration. Distance is the primary input; assume a
+// fixed reasonable cruise velocity and jitter each leg independently so identical-distance
+// legs don't produce identical durations. Aircraft performance stays irrelevant to timing.
+const CRUISE_SPEED_KMH = 800;
+const DURATION_JITTER_RATIO = 0.08;
+const MIN_FLIGHT_TIME_HOURS = 0.5;
+
+function makeDurationHours(distanceKms: number): number {
+  const base = Math.max(distanceKms / CRUISE_SPEED_KMH, MIN_FLIGHT_TIME_HOURS);
+  const jitter = faker.number.float({ min: -DURATION_JITTER_RATIO, max: DURATION_JITTER_RATIO });
+  return base * (1 + jitter);
+}
+
+// Pricing/seat enrichment happens in later Search-Flow stages that are still `To be
+// determined` in FLIGHT_GENERATOR.md. Timestamps here are placeholders (the raw query date) —
+// applyTimeFlow overwrites them once a Route's departure slot is known.
+function makeFlight(from: Airport, to: Airport, date: string, airline: Airline): Flight {
+  const flightDistanceKms = haversineKm(from, to);
   return {
     id: generateId(),
-    flightTimeHours: 1,
-    flightDistanceKms: 100,
+    flightTimeHours: makeDurationHours(flightDistanceKms),
+    flightDistanceKms,
     departure: {
       timestamp: date,
-      airport: fromIata,
+      airport: from.iata,
     },
     arrival: {
       timestamp: date,
-      airport: toIata,
+      airport: to.iata,
     },
     travelInfo: {
       airline: airline.iata,
@@ -64,9 +79,14 @@ export async function findDirectFlights(from: string, to: string, date: string, 
 
   // First pass: only path resolution. A direct flight is possible whenever an airline
   // holds a regional airport_airlines edge at both `from` and `to`; one Flight per airline.
-  const regionalAirlines = await store.getRegionalAirlines(from, to);
+  const [fromAirport, toAirport, regionalAirlines] = await Promise.all([
+    store.getAirport(from),
+    store.getAirport(to),
+    store.getRegionalAirlines(from, to),
+  ]);
+  if (!fromAirport || !toAirport) return [];
 
-  return regionalAirlines.map((airline) => makeFlight(from, to, date, airline));
+  return regionalAirlines.map((airline) => makeFlight(fromAirport, toAirport, date, airline));
 }
 
 // Departure reduction: given the query's departure or arrival airport, produce candidate
@@ -101,9 +121,7 @@ async function reduceToHub(
       if (airlines.length === 0) continue;
       const airline = faker.helpers.arrayElement(airlines);
       const connector =
-        direction === 'outbound'
-          ? makeFlight(airport.iata, regular.iata, date, airline)
-          : makeFlight(regular.iata, airport.iata, date, airline);
+        direction === 'outbound' ? makeFlight(airport, regular, date, airline) : makeFlight(regular, airport, date, airline);
 
       // Recurse: the regular connector airport still needs to reach a proper Hub.
       const downstream = await reduceToHub(regular, date, direction);
@@ -129,9 +147,7 @@ async function reduceToHub(
   if (airlines.length === 0) return [];
   const airline = faker.helpers.arrayElement(airlines);
   const edge =
-    direction === 'outbound'
-      ? makeFlight(airport.iata, nearest.hub.iata, date, airline)
-      : makeFlight(nearest.hub.iata, airport.iata, date, airline);
+    direction === 'outbound' ? makeFlight(airport, nearest.hub, date, airline) : makeFlight(nearest.hub, airport, date, airline);
 
   return [{ hub: nearest.hub, edges: [edge] }];
 }
@@ -219,7 +235,7 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
         for (let i = 0; i < hubPath.length - 1; i++) {
           const legAirline =
             i === 0 ? firstAirline : faker.helpers.arrayElement(await store.getConnectingAirlines(hubPath[i].iata, hubPath[i + 1].iata));
-          hubLegs.push(makeFlight(hubPath[i].iata, hubPath[i + 1].iata, date, legAirline));
+          hubLegs.push(makeFlight(hubPath[i], hubPath[i + 1], date, legAirline));
         }
         routes.push([...start.edges, ...hubLegs, ...end.edges]);
         if (routes.length >= count) return routes;
@@ -228,6 +244,121 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
   }
 
   return routes;
+}
+
+// FLIGHT_GENERATOR.md Time Flow: Connection Time. Layover length depends on whether the
+// connecting airport is a Hub (long-haul-style layover) or not (short domestic-style layover).
+const NON_HUB_CONNECTION_MIN_MINUTES = 30;
+const NON_HUB_CONNECTION_MAX_MINUTES = 180;
+const HUB_CONNECTION_MIN_HOURS = 4;
+const HUB_CONNECTION_MAX_HOURS = 7;
+
+function makeConnectionHours(connectingAirport: Airport): number {
+  if (connectingAirport.isHub) {
+    return faker.number.float({ min: HUB_CONNECTION_MIN_HOURS, max: HUB_CONNECTION_MAX_HOURS });
+  }
+  return faker.number.float({ min: NON_HUB_CONNECTION_MIN_MINUTES, max: NON_HUB_CONNECTION_MAX_MINUTES }) / 60;
+}
+
+// FLIGHT_GENERATOR.md Time Flow: Departure Windows & Availability. Floors are evaluated
+// against the departure airport's local wall clock, then converted back to a UTC instant.
+const CURRENT_DAY_FLOOR_HOURS = 6;
+const FULL_DAY_FLOOR_HOUR = 5; // 5AM local — a floor, not a rigid slot start.
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+// UTC instant of `hour`:00 local wall-clock time on `date`, at an airport with `utcOffset`.
+function localHourToUtcInstant(date: string, hour: number, utcOffset: number): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return Date.UTC(y, m - 1, d, hour) - utcOffset * 3600_000;
+}
+
+// The [start, end) instant window within which this Route collection's departures may be
+// spaced out, given the search `date` and the departure airport's local clock/offset.
+function departureWindow(date: string, utcOffset: number, now: number): { start: number; end: number } {
+  const localNow = now + utcOffset * 3600_000;
+  const localNowDate = new Date(localNow);
+  const today = `${localNowDate.getUTCFullYear()}-${pad(localNowDate.getUTCMonth() + 1)}-${pad(localNowDate.getUTCDate())}`;
+
+  const fiveAm = localHourToUtcInstant(date, FULL_DAY_FLOOR_HOUR, utcOffset);
+  const nextMidnight = localHourToUtcInstant(date, 24, utcOffset);
+
+  // Future day (or a past date, which callers should already have rejected): the 5AM floor
+  // is the only restriction — no other time-of-day gating applies.
+  if (date !== today) {
+    return { start: fiveAm, end: nextMidnight };
+  }
+
+  // Current day: earliest departure is 6 hours from now. If that pushes past this day's
+  // schedule (crosses local midnight), no current-day flights are offered — roll over
+  // entirely to the next day's full 5AM-floored schedule instead.
+  const sixHoursFromNow = now + CURRENT_DAY_FLOOR_HOURS * 3600_000;
+  if (sixHoursFromNow >= nextMidnight) {
+    const nextDayFiveAm = nextMidnight + FULL_DAY_FLOOR_HOUR * 3600_000;
+    return { start: nextDayFiveAm, end: nextMidnight + 24 * 3600_000 };
+  }
+
+  return { start: Math.max(fiveAm, sixHoursFromNow), end: nextMidnight };
+}
+
+function formatLocalTimestamp(utcMillis: number, utcOffset: number): string {
+  const local = new Date(utcMillis + utcOffset * 3600_000);
+  const offsetSign = utcOffset >= 0 ? '+' : '-';
+  const offsetMagnitude = Math.abs(utcOffset);
+  const offsetStr = Number.isInteger(offsetMagnitude) ? `${offsetMagnitude}` : offsetMagnitude.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+
+  return (
+    `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())} ` +
+    `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())} UTC${offsetSign}${offsetStr}`
+  );
+}
+
+// Time Flow: takes the Route collection Path Flow already built and only spaces out each
+// Route's departure time — it never adds or removes Routes (trimming is a later, Normalization
+// concern). Each Route's own first-leg departure is spread evenly across the valid departure
+// window for `date`; subsequent leg timestamps then follow sequentially from Flight Duration
+// and Connection Time.
+export async function applyTimeFlow(sequences: Flight[][], date: string): Promise<Flight[][]> {
+  const now = Date.now();
+  const airportCache = new Map<string, Airport | undefined>();
+  const getAirport = async (iata: string): Promise<Airport | undefined> => {
+    if (!airportCache.has(iata)) {
+      airportCache.set(iata, await store.getAirport(iata));
+    }
+    return airportCache.get(iata);
+  };
+
+  for (const [index, sequence] of sequences.entries()) {
+    if (sequence.length === 0) continue;
+
+    const departureAirport = await getAirport(sequence[0].departure.airport);
+    if (!departureAirport) continue;
+
+    const window = departureWindow(date, departureAirport.utcOffset, now);
+    const spacing = (window.end - window.start) / sequences.length;
+    let cursor = window.start + index * spacing;
+
+    for (let i = 0; i < sequence.length; i++) {
+      const flight = sequence[i];
+      const fromAirport = await getAirport(flight.departure.airport);
+      const toAirport = await getAirport(flight.arrival.airport);
+      if (!fromAirport || !toAirport) continue;
+
+      const departureInstant = cursor;
+      const arrivalInstant = departureInstant + flight.flightTimeHours * 3600_000;
+
+      flight.departure.timestamp = formatLocalTimestamp(departureInstant, fromAirport.utcOffset);
+      flight.arrival.timestamp = formatLocalTimestamp(arrivalInstant, toAirport.utcOffset);
+
+      if (i < sequence.length - 1) {
+        cursor = arrivalInstant + makeConnectionHours(toAirport) * 3600_000;
+      }
+    }
+  }
+
+  return sequences;
 }
 
 // Wrap ordered flight sequences into Routes. Route metadata (time, distance, price,

@@ -192,6 +192,7 @@ src/
 - Store sensitive data securely (environment variables)
 - Use Content Security Policy (CSP) headers
 - Use CORS headers
+- Don't use `awk -F,` for CSV splitting, it introduces bugs from commas, quotes strings
 
 ## Development Workflow
 
