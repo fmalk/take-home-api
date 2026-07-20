@@ -1,7 +1,8 @@
 import { faker } from '@faker-js/faker';
 import { randomUUID } from 'crypto';
-import type { Aircraft, Airline, Airport, Flight, Route } from './types.js';
+import type { Aircraft, Airline, Airport, Flight, Pricing, Route } from './types.js';
 import { TravelStore } from './store.js';
+import { convertFromUsd } from './currency.js';
 
 const store = new TravelStore();
 
@@ -44,12 +45,19 @@ function makeDurationHours(distanceKms: number): number {
   return base * (1 + jitter);
 }
 
+// A leg counts as "regional" for aircraft/pricing purposes if either endpoint is a regional
+// airport — mirrors FLIGHT_GENERATOR.md's Design section (regional airports are served by few,
+// small-scale domestic airlines).
+function isRegionalLeg(from: Airport, to: Airport): boolean {
+  return from.isRegional || to.isRegional;
+}
+
 // FLIGHT_GENERATOR.md Equipment Generation: aircraft size follows the route's airport
 // category — a regional leg (either end) is too small for anything but a small aircraft, a
 // hub-to-hub leg is the only case that can justify a large aircraft, everything else (regular
 // airports, regular-to-hub feeders) gets a medium aircraft.
 function pickAircraftSize(from: Airport, to: Airport): Aircraft['type'] {
-  if (from.isRegional || to.isRegional) return 'small';
+  if (isRegionalLeg(from, to)) return 'small';
   if (from.isHub && to.isHub) return 'large';
   return 'medium';
 }
@@ -70,13 +78,48 @@ function makeFlightNumber(airlineIata: string): string {
   return `${airlineIata} ${suffix}`;
 }
 
-// Pricing/seat enrichment happens in later Search-Flow stages that are still `To be
-// determined` in FLIGHT_GENERATOR.md. Timestamps here are placeholders (the raw query date) —
-// applyTimeFlow overwrites them once a Route's departure slot is known.
+// FLIGHT_GENERATOR.md Pricing: base fare is a flat component plus a per-km rate that varies by
+// leg category — regional legs (short-haul, small aircraft) carry a higher per-km rate than
+// non-regional legs, reflecting worse economies of scale on short domestic hops. Always USD;
+// currency conversion is a Route-level concern (see groupRoutes), not a Flight one.
+const REGIONAL_PRICE_PER_KM_USD = 0.35;
+const NON_REGIONAL_PRICE_PER_KM_USD = 0.12;
+const BASE_FARE_USD = 25;
+const REGULAR_PRICE_JITTER_RATIO = 0.1;
+
+// Class fares are derived from the jittered Regular fare via fixed multipliers (Economy 30%
+// discount, Business +180%, First +300%), each with a little independent jitter of its own so
+// the ratios aren't perfectly exact across every Flight.
+const ECONOMY_MULTIPLIER = 0.7;
+const BUSINESS_MULTIPLIER = 1.8;
+const FIRST_MULTIPLIER = 3.0;
+const CLASS_MULTIPLIER_JITTER_RATIO = 0.05;
+
+function jitter(value: number, ratio: number): number {
+  return value * (1 + faker.number.float({ min: -ratio, max: ratio }));
+}
+
+function makePricing(distanceKms: number, from: Airport, to: Airport, available: number): Pricing {
+  const perKm = isRegionalLeg(from, to) ? REGIONAL_PRICE_PER_KM_USD : NON_REGIONAL_PRICE_PER_KM_USD;
+  const regular = Math.round(jitter(BASE_FARE_USD + distanceKms * perKm, REGULAR_PRICE_JITTER_RATIO));
+
+  return {
+    currency: 'USD',
+    available,
+    regular,
+    economy: Math.round(regular * jitter(ECONOMY_MULTIPLIER, CLASS_MULTIPLIER_JITTER_RATIO)),
+    businessClass: Math.round(regular * jitter(BUSINESS_MULTIPLIER, CLASS_MULTIPLIER_JITTER_RATIO)),
+    firstClass: Math.round(regular * jitter(FIRST_MULTIPLIER, CLASS_MULTIPLIER_JITTER_RATIO)),
+  };
+}
+
+// Timestamps here are placeholders (the raw query date) — applyTimeFlow overwrites them once a
+// Route's departure slot is known.
 function makeFlight(from: Airport, to: Airport, date: string, airline: Airline, aircraftList: Aircraft[]): Flight {
   const flightDistanceKms = haversineKm(from, to);
   const aircraft = pickAircraft(from, to, aircraftList);
   const available = faker.number.int({ min: 10, max: aircraft.capacity });
+  const pricing = makePricing(flightDistanceKms, from, to, available);
   return {
     id: generateId(),
     flightTimeHours: makeDurationHours(flightDistanceKms),
@@ -94,8 +137,8 @@ function makeFlight(from: Airport, to: Airport, date: string, airline: Airline, 
       aircraft: `${aircraft.manufacturer} ${aircraft.model}`,
       flightNumber: makeFlightNumber(airline.iata),
     },
-    price: 0,
-    pricing: [{ currency: 'USD', available, regular: 0 }],
+    price: pricing.regular ?? 0,
+    pricing: [pricing],
     available,
   };
 }
@@ -503,23 +546,79 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
   return sequences;
 }
 
-// Wrap ordered flight sequences into Routes. Route metadata (time, distance, price,
-// availability) is aggregated across the sequence — the Normalization step in
-// FLIGHT_GENERATOR.md. Pricing is still stubbed pending the TBD Pricing stage.
-export function groupRoutes(sequences: Flight[][]): Route[] {
-  return sequences.map((seq) => {
+type PriceClassKey = 'regular' | 'economy' | 'businessClass' | 'firstClass';
+const PRICE_CLASS_KEYS: PriceClassKey[] = ['regular', 'economy', 'businessClass', 'firstClass'];
+
+// Route pricing sums each seat class across every leg's USD pricing (a leg missing a class,
+// e.g. no first class offered, just doesn't contribute to that class's sum).
+function sumFlightPricing(flights: Flight[]): Pricing {
+  const sum = (key: PriceClassKey): number | undefined =>
+    flights.reduce<number | undefined>((acc, f) => {
+      const value = f.pricing[0]?.[key];
+      return value === undefined ? acc : (acc ?? 0) + value;
+    }, undefined);
+
+  const summed: Pricing = { currency: 'USD', available: Math.min(...flights.map((f) => f.available)) };
+  for (const key of PRICE_CLASS_KEYS) {
+    summed[key] = sum(key);
+  }
+  return summed;
+}
+
+// Converts a summed-USD Pricing entry into another currency, or undefined if that currency
+// has no known exchange rate (currency.ts).
+function convertPricing(pricing: Pricing, currency: string): Pricing | undefined {
+  const converted: Pricing = { currency, available: pricing.available };
+  for (const key of PRICE_CLASS_KEYS) {
+    const usdValue = pricing[key];
+    if (usdValue === undefined) continue;
+    const value = convertFromUsd(usdValue, currency);
+    if (value === undefined) return undefined; // currency not in the reference table
+    converted[key] = value;
+  }
+  return converted;
+}
+
+// Wrap ordered flight sequences into Routes. Route metadata (time, distance, availability) is
+// aggregated across the sequence — the Normalization step in FLIGHT_GENERATOR.md. Route
+// pricing is the sum of each leg's USD pricing per seat class, plus (per FLIGHT_GENERATOR.md
+// Pricing) a second Pricing entry converted to the departure airport's local currency — an
+// alternate-currency view that only ever appears on the Route, never on individual Flights.
+export async function groupRoutes(sequences: Flight[][]): Promise<Route[]> {
+  const localCurrencyCache = new Map<string, string | undefined>();
+  const getLocalCurrency = async (iata: string): Promise<string | undefined> => {
+    if (!localCurrencyCache.has(iata)) {
+      const airport = await store.getAirport(iata);
+      localCurrencyCache.set(iata, airport?.localCurrency);
+    }
+    return localCurrencyCache.get(iata);
+  };
+
+  const routes: Route[] = [];
+  for (const seq of sequences) {
     const first = seq[0];
     const last = seq[seq.length - 1];
-    return {
+    const usdPricing = sumFlightPricing(seq);
+    const pricing: Pricing[] = [usdPricing];
+
+    const localCurrency = await getLocalCurrency(first.departure.airport);
+    if (localCurrency && localCurrency !== 'USD') {
+      const converted = convertPricing(usdPricing, localCurrency);
+      if (converted) pricing.push(converted);
+    }
+
+    routes.push({
       id: generateId(),
       flightTimeHours: seq.reduce((sum, f) => sum + f.flightTimeHours, 0),
       flightDistanceKms: seq.reduce((sum, f) => sum + f.flightDistanceKms, 0),
       departure: first.departure,
       arrival: last.arrival,
       flights: seq,
-      available: Math.min(...seq.map((f) => f.available)),
-      price: seq.reduce((sum, f) => sum + f.price, 0),
-      pricing: first.pricing,
-    };
-  });
+      available: usdPricing.available,
+      price: usdPricing.regular ?? 0,
+      pricing,
+    });
+  }
+
+  return routes;
 }

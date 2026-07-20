@@ -123,7 +123,24 @@ To be determined. Currently all Flights have 0 available seats and a single seat
 
 ## Pricing
 
-To be determined. Currently all Flights have $0 price. Pricing per cabin class and dynamic pricing (e.g. by distance, airline, class) will be enriched here once modeled.
+Every Flight's price is generated in USD only; currency conversion is a Route-level concern (below).
+
+- **Base fare**: a flat `BASE_FARE_USD` component plus a per-km rate that depends on the leg category — the same regional-vs-non-regional split used for Aircraft sizing (see Equipment Generation). Regional legs (either endpoint a regional airport) carry a higher per-km rate than non-regional legs, reflecting worse economies of scale on short domestic hops.
+- **Regular** seat price is the base fare with a small random jitter applied.
+- Other cabin classes are derived from Regular via fixed multipliers, each with their own small independent jitter:
+  - **Economy**: 30% discount off Regular (×0.7).
+  - **Business**: 180% of Regular (×1.8).
+  - **First**: 300% of Regular (×3.0).
+- A Flight's `pricing` array always has exactly one entry, `currency: 'USD'`.
+- A Flight's flat `price` field (the "simpler scenarios" field, see types.ts) mirrors that entry's `regular` USD price.
+
+### Route Pricing
+
+After every Flight in a Route's leg sequence has USD pricing, `groupRoutes` (Normalization step):
+
+- Sums each seat class (`regular`/`economy`/`businessClass`/`firstClass`) across all legs into a single USD `Pricing` entry. The Route's flat `price` field mirrors that entry's summed `regular` USD price.
+- Appends a second `Pricing` entry converted to the departure airport's `localCurrency` (via `currency.ts`, backed by `currency_rates.csv`) — skipped if the departure airport's currency is already USD, or isn't present in the exchange-rate reference table.
+- This alternate-currency entry only ever appears on the Route's `pricing` array, never on an individual Flight's.
 
 ## Equipment Generation
 
