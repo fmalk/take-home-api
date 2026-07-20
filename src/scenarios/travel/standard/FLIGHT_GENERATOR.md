@@ -16,8 +16,10 @@ The goal is NOT precision, accuracy, or efficiency in finding "best paths". Ther
 - Every airport has a predetermined list of airlines that serve it.
   - This serving can be regional, meaning it is a domestic flight; or non-regional, intended to serve a connection to a hub.
 - A direct flight between two airports is possible if and only if they are both served by the same airline, one or more airline being available.
-- Hubs are only guaranteed connected transitively, not via a single direct edge using one airline only.
-  - No single airline can traverse all hubs.
+- Hubs are only guaranteed connected transitively, not pairwise-direct.
+  - build-db.ts links each hub to airlines whose headquarters sit within a distance threshold (MAX_HUB_RANGE_KM ≈ 6000 km). Two hubs on opposite sides of one HQ's range can end up ~12,000 km apart via that HQ.
+  - Isolated hub clusters (e.g. HNL in the Pacific) get one intentional bridge edge with no distance check, purely to keep the hub graph connected.
+  - Path-finding must therefore consider multi-hop hub traversals, not assume every hub pair has a direct airline link.
 
 ## Nomenclature:
 
@@ -45,30 +47,45 @@ The algorithm follows this process:
 
 When a request is made from a Departure to an Arrival, the algorithm follows:
 
-- If a direct, regional flight is possible, enlist every possible airline as direct routing.
-  - Response array will be a list of Routes, each one will contain one available Flight.
-- If no direct flight possible:
-  - At least one Hub Airport will be used for path finding.
-  - If departure airport is regional:
-    - Find one regional flight connecting it to a close regular airport. Try finding another secondary regular airport.
-  - If departure airport is regular:
-    - Decide a close starting Hub airport.
-    - Find all possible connections to that Hub.
-  - If departure airport is already a Hub, use it as the starting Hub.
-  - Repeat those steps for the arrival airport. Decide the destination Hub.
-  - Find at most three possible path from starting Hub to destination Hub.
-    - We use BFS path finding for Hubs, there's only a few Hubs so searching is fast.
-  - Concatenate starting edges, hub edges, and destination edges.
-  - Response array will be a list of Routes, each one containing a valid list of ordered Flights.
+### Direct Regional Flights
+
+- If both departure and arrival are served by the same airline on a regional edge, enlist every such airline as a direct routing.
+  - Response array will be a list of Routes, each one containing one Flight.
+
+### Hub-Based Routing (No Direct Flight)
+
+- Isolated airports (military, scientific) return no results.
+- Reduce departure and arrival airports to hub "gateways" — a hub + the sequence of connector flights to reach it:
+  - **Regional airport**: find the nearest 1–2 standard (non-hub, non-regional) airports reachable via regional edges; recursively reduce each to a hub (or connect directly to one if it's close enough).
+  - **Standard airport**: connect to the nearest hub via any airline serving both.
+  - **Hub airport**: use itself as the gateway (zero connector flights).
+- Find hub-to-hub paths:
+  - Use BFS on the hub graph to find shortest paths (fewest hops).
+  - Restrict edges to ≤ 7000 km (hubs aren't pairwise-direct; isolated clusters like HNL have long bridge edges needed for connectivity, but prefer shorter alternatives when available).
+  - If no path exists under 7000 km, fall back to the unrestricted graph (so bridged clusters remain reachable).
+  - Each hub-to-hub hop uses one airline serving both hubs (randomly selected from available).
+- Concatenate: departure connectors + hub path + arrival connectors.
+- For each valid starting-hub and ending-hub pair, generate up to 3 routes by shuffling airline choice on the first hub leg (subsequent legs follow from connectivity necessity).
+- Response array is a list of Routes, each containing an ordered Flight[] from departure to arrival.
+
+## Route Normalization
+
+After a valid Flight[] sequence is built (direct or via hub path), aggregate Flight metadata into the Route level:
+- `flightTimeHours`: sum across all legs.
+- `flightDistanceKms`: sum across all legs.
+- `departure` / `arrival`: inherit from first and last Flight respectively.
+- `available` (seats): minimum across all legs (a 0-seat leg blocks the whole route).
+- `price`: sum across all legs.
+- `pricing`: inherit from the first leg's pricing array (uniform across all legs at present).
 
 ## Time Flow
 
-To be determined.
+To be determined. Currently all Flights use the query date as both departure and arrival timestamp (no duration modeling).
 
 ## Seat Offering
 
-To be determined.
+To be determined. Currently all Flights have 0 available seats and a single seat type (regular). Seat availability and cabin classes will be enriched here once modeled.
 
 ## Pricing
 
-To be determined.
+To be determined. Currently all Flights have $0 price. Pricing per cabin class and dynamic pricing (e.g. by distance, airline, class) will be enriched here once modeled.
