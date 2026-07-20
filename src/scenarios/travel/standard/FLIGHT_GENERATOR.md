@@ -15,7 +15,9 @@ The goal is NOT precision, accuracy, or efficiency in finding "best paths". Ther
   - You can see a map of all airports at the generated file ./airports-map.html
 - Every airport has a predetermined list of airlines that serve it.
   - This serving can be regional, meaning it is a domestic flight; or non-regional, intended to serve a connection to a hub.
-- A flight between two airports is possible if and only if they are both served by the same airline, one or more airline being available.
+- A direct flight between two airports is possible if and only if they are both served by the same airline, one or more airline being available.
+- Hubs are only guaranteed connected transitively, not via a single direct edge using one airline only.
+  - No single airline can traverse all hubs.
 
 ## Nomenclature:
 
@@ -55,6 +57,7 @@ When a request is made from a Departure to an Arrival, the algorithm follows:
   - If departure airport is already a Hub, use it as the starting Hub.
   - Repeat those steps for the arrival airport. Decide the destination Hub.
   - Find at most three possible path from starting Hub to destination Hub.
+    - We use BFS path finding for Hubs, there's only a few Hubs so searching is fast.
   - Concatenate starting edges, hub edges, and destination edges.
   - Response array will be a list of Routes, each one containing a valid list of ordered Flights.
 

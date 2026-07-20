@@ -136,9 +136,38 @@ async function reduceToHub(
   return [{ hub: nearest.hub, edges: [edge] }];
 }
 
+// Hubs aren't necessarily linked pairwise — build-db.ts only guarantees every hub reaches
+// every other hub via *some* sequence of shared-airline legs (see its assertHubGraphConnected).
+// So "a path from starting Hub to destination Hub" can itself be multiple hub-to-hub hops;
+// find the shortest one with a plain BFS over the (small, ~17-node) hub graph.
+async function findHubPath(startHub: Airport, endHub: Airport): Promise<Airport[] | undefined> {
+  if (startHub.iata === endHub.iata) return [startHub];
+
+  const visited = new Set([startHub.iata]);
+  let frontier: Airport[][] = [[startHub]];
+
+  while (frontier.length > 0) {
+    const nextFrontier: Airport[][] = [];
+    for (const path of frontier) {
+      const last = path[path.length - 1];
+      const neighbors = await store.getReachableAirports(last.iata, { onlyHub: true });
+      for (const neighbor of neighbors) {
+        if (visited.has(neighbor.iata)) continue;
+        const nextPath = [...path, neighbor];
+        if (neighbor.iata === endHub.iata) return nextPath;
+        visited.add(neighbor.iata);
+        nextFrontier.push(nextPath);
+      }
+    }
+    frontier = nextFrontier;
+  }
+
+  return undefined;
+}
+
 // Second pass: when no direct regional flight exists, build routes via a starting Hub and
 // a destination Hub per FLIGHT_GENERATOR.md Path Flow. Each returned Flight[] is one
-// ordered leg-sequence for a single Route (regional→regular→hub → hub→regular→regional,
+// ordered leg-sequence for a single Route (regional→regular→hub → hub-path → hub→regular→regional,
 // with degenerate cases when either end is already a Hub or regular).
 export async function findConnectingRoutes(from: string, to: string, date: string, count: number = 3): Promise<Flight[][]> {
   faker.seed(hashFlightQuery(from, to, date));
@@ -165,11 +194,19 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
         continue;
       }
 
-      const hubAirlines = await store.getConnectingAirlines(start.hub.iata, end.hub.iata);
-      const shuffled = faker.helpers.shuffle(hubAirlines);
-      for (const airline of shuffled.slice(0, count)) {
-        const hubLeg = makeFlight(start.hub.iata, end.hub.iata, date, airline);
-        routes.push([...start.edges, hubLeg, ...end.edges]);
+      const hubPath = await findHubPath(start.hub, end.hub);
+      if (!hubPath) continue;
+
+      const firstLegAirlines = await store.getConnectingAirlines(hubPath[0].iata, hubPath[1].iata);
+      const shuffled = faker.helpers.shuffle(firstLegAirlines);
+      for (const firstAirline of shuffled.slice(0, count)) {
+        const hubLegs: Flight[] = [];
+        for (let i = 0; i < hubPath.length - 1; i++) {
+          const legAirline =
+            i === 0 ? firstAirline : faker.helpers.arrayElement(await store.getConnectingAirlines(hubPath[i].iata, hubPath[i + 1].iata));
+          hubLegs.push(makeFlight(hubPath[i].iata, hubPath[i + 1].iata, date, legAirline));
+        }
+        routes.push([...start.edges, ...hubLegs, ...end.edges]);
         if (routes.length >= count) return routes;
       }
     }
