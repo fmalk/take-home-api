@@ -46,11 +46,11 @@ In advanced scenarios, look out for:
 
 ## SQLite Build
 
-`npm run db:build:travel` parses `airports.csv`, `fictional_airlines.csv`, `real_airlines.csv`, and `aircraft.csv` into `travel.sqlite` (checked in, alongside the CSVs it's derived from). Tables:
+`npm run db:build:travel` parses `airports.csv`, `fictional_airlines.csv`, and `real_airlines.csv` into `travel.sqlite` (checked in, alongside the CSVs it's derived from). Tables:
 
 - `airports` — one row per airport CSV row, keyed by IATA code (ICAO is unique-indexed).
 - `airlines` — both fictional and real rosters in one table, keyed by IATA code (ICAO unique-indexed), flagged by `is_real`.
-- `aircraft` — a selection of aircraft (manufacturer, model, size category, seat capacity) to be picked for flights.
+- `aircraft` — a selection of planes to be used by flights.
 - `airport_airlines` — assumed airline coverage per airport (not sourced from anywhere real).
   - Each airport is linked to a few airlines, with busier airports (by `passengers_monthly`) getting more coverage.
   - Assignment is deterministic, so rebuilding the database is reproducible.
