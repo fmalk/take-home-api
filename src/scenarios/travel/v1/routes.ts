@@ -46,6 +46,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/api/travel/v1/postman',
+    {
+      onSend: async (_request, reply) => {
+        reply.header('Cache-Control', 'public, max-age=86400');
+      },
+    },
     async (request, reply) => {
       await servePostmanCollection('travel/v1', request, reply);
     },
@@ -57,7 +62,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       schema: searchFlightsSchema,
       onSend: async (_request, reply) => {
         // Flight IDs in search results are only resolvable for ~4:30 min (instance store TTL = 5 min).
-        // Signal this to clients/proxies so they know to refresh if fetching flight details later.
         reply.header('Cache-Control', 'public, max-age=270');
       },
     },
@@ -68,6 +72,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     '/api/travel/v1/flights/:id',
     {
       schema: flightDetailSchema,
+      onSend: async (_request, reply) => {
+        // Flight IDs in search results are only resolvable for ~4:30 min (instance store TTL = 5 min).
+        reply.header('Cache-Control', 'public, max-age=270');
+      },
     },
     getFlightDetail,
   );
