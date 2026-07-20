@@ -69,7 +69,7 @@ When a request is made from a Departure to an Arrival, the algorithm follows:
   - If no path exists under 7000 km, fall back to the unrestricted graph (so bridged clusters remain reachable).
   - Each hub-to-hub hop uses one airline serving both hubs (randomly selected from available).
 - Concatenate: departure connectors + hub path + arrival connectors.
-- For each valid starting-hub and ending-hub pair, generate one route per airline choice on the first hub leg (subsequent legs follow from connectivity necessity) — every combination found, not a sampled subset.
+- For each valid starting-hub and ending-hub pair, generate one route per airline combination across all hub legs — every combination found, not a sampled subset.
 - Response array is a list of Routes, each containing an ordered Flight[] from departure to arrival, capped at a hard safety limit of 1000 (MAX_ROUTES) that a normal search should never come close to hitting. Trimming down to a presentable size is a later Normalization concern.
 
 ## Route Normalization

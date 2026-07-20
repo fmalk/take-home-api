@@ -197,10 +197,28 @@ async function findBestHubPath(startHub: Airport, endHub: Airport): Promise<Airp
 }
 
 // Path Flow returns one Route per combination found (every start-gateway x end-gateway x
-// first-hub-leg-airline combination), not a sampled subset — trimming is a later Normalization
+// all-hub-leg-airline combination), not a sampled subset — trimming is a later Normalization
 // concern. MAX_ROUTES is a hard safety cap only; a real route explosion this large should never
 // happen given the ~17-node hub graph and small per-airport gateway/airline fan-out.
 const MAX_ROUTES = 1000;
+
+// Generate cartesian product of airline combinations across all hub legs.
+function* generateAirlineCombinations(legAirlines: Airline[][]): Generator<Airline[]> {
+  if (legAirlines.length === 0) return;
+  if (legAirlines.length === 1) {
+    for (const airline of legAirlines[0]) {
+      yield [airline];
+    }
+    return;
+  }
+
+  const [first, ...rest] = legAirlines;
+  for (const airline of first) {
+    for (const combination of generateAirlineCombinations(rest)) {
+      yield [airline, ...combination];
+    }
+  }
+}
 
 // Second pass: when no direct regional flight exists, build routes via a starting Hub and
 // a destination Hub per FLIGHT_GENERATOR.md Path Flow. Each returned Flight[] is one
@@ -234,14 +252,25 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
       const hubPath = await findBestHubPath(start.hub, end.hub);
       if (!hubPath) continue;
 
-      const firstLegAirlines = await store.getConnectingAirlines(hubPath[0].iata, hubPath[1].iata);
-      const shuffled = faker.helpers.shuffle(firstLegAirlines);
-      for (const firstAirline of shuffled) {
+      // Collect airlines for each hub-to-hub leg.
+      const legAirlines: Airline[][] = [];
+      for (let i = 0; i < hubPath.length - 1; i++) {
+        const airlines = await store.getConnectingAirlines(hubPath[i].iata, hubPath[i + 1].iata);
+        if (airlines.length === 0) {
+          // No airlines serve this leg, skip this hub path entirely.
+          legAirlines.length = 0;
+          break;
+        }
+        legAirlines.push(airlines);
+      }
+
+      if (legAirlines.length === 0) continue;
+
+      // Generate routes for every airline combination across all hub legs.
+      for (const airlineCombination of generateAirlineCombinations(legAirlines)) {
         const hubLegs: Flight[] = [];
         for (let i = 0; i < hubPath.length - 1; i++) {
-          const legAirline =
-            i === 0 ? firstAirline : faker.helpers.arrayElement(await store.getConnectingAirlines(hubPath[i].iata, hubPath[i + 1].iata));
-          hubLegs.push(makeFlight(hubPath[i], hubPath[i + 1], date, legAirline));
+          hubLegs.push(makeFlight(hubPath[i], hubPath[i + 1], date, airlineCombination[i]));
         }
         routes.push([...start.edges, ...hubLegs, ...end.edges]);
         if (routes.length >= MAX_ROUTES) return routes;
