@@ -41,14 +41,8 @@ export interface Airline {
 
 export interface Pricing {
   currency: string;
-  regular: number;
-  economy?: number;
-  businessClass?: number;
-  firstClass?: number;
-}
-
-export interface Seats {
-  regular: number;
+  available: number;
+  regular?: number;
   economy?: number;
   businessClass?: number;
   firstClass?: number;
@@ -71,10 +65,9 @@ export interface Flight {
     aircraft: string;
     flightNumber: string;
   };
+  available: number;
   price: number; // simpler scenarios
   pricing: Pricing[];
-  available: number;
-  seats: Seats[];
 }
 
 export interface Route {

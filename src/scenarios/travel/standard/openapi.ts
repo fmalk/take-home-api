@@ -34,30 +34,20 @@ export const airlineSchema = {
     name: { type: 'string', description: 'Airline name' },
     country: { type: 'string', description: 'Airline country of origin' },
     countryCode: { type: 'string', description: 'Airline country of origin code (two letters)' },
-    // boolean flags about seats are not exposed at Schema
+    // boolean flags about seats are not exposed to API
   },
 };
 
 export const pricingSchema = {
   type: 'object',
-  required: ['currency'],
+  required: ['currency', 'available'],
   properties: {
     currency: { type: 'string', description: 'Code for currency (three letters)' },
-    regular: { type: 'number', description: 'Price for Regular seat' },
-    economy: { type: 'number', description: 'Price for Economy seat' },
-    businessClass: { type: 'number', description: 'Price for Business Class seat' },
-    firstClass: { type: 'number', description: 'Price for First Class seat' },
-  },
-};
-
-export const seatsSchema = {
-  type: 'object',
-  required: [],
-  properties: {
-    regular: { type: 'number', description: 'Available Regular seats' },
-    economy: { type: 'number', description: 'Available Economy seats' },
-    businessClass: { type: 'number', description: 'Available Business Class seats' },
-    firstClass: { type: 'number', description: 'Available First Class seats' },
+    available: { type: 'number', description: 'Number of seats available for current seat pricing' },
+    regular: { type: 'number', optional: true, description: 'Price for Regular seat' },
+    economy: { type: 'number', optional: true, description: 'Price for Economy seat' },
+    businessClass: { type: 'number', optional: true, description: 'Price for Business Class seat' },
+    firstClass: { type: 'number', optional: true, description: 'Price for First Class seat' },
   },
 };
 
@@ -81,18 +71,12 @@ export const flightSchema = {
       aircraft: { type: 'string', description: 'Manufacturer and Model of aircraft' },
       flightNumber: { type: 'string', description: 'Flight Number' },
     },
+    available: { type: 'number', description: 'Quantity of available seats' },
     price: { type: 'number', description: 'Price in USD' },
     pricing: {
       type: 'array',
       items: {
         $ref: '#/components/schemas/Pricing',
-      },
-    },
-    available: { type: 'number', description: 'Quantity of available seats' },
-    seats: {
-      type: 'array',
-      items: {
-        $ref: '#/components/schemas/Seats',
       },
     },
   },
@@ -113,18 +97,18 @@ export const routeSchema = {
       timestamp: { type: 'string', description: 'Arrival timestamp (YYYY-MM-DD HH:MM UTC+X)' },
       airport: { type: 'string', description: 'Arrival airport code IATA' },
     },
+    flights: {
+      type: 'array',
+      items: {
+        $ref: '#/components/schemas/Flight',
+      },
+    },
+    available: { type: 'number', description: 'Quantity of available seats' },
     price: { type: 'number', description: 'Price in USD' },
     pricing: {
       type: 'array',
       items: {
         $ref: '#/components/schemas/Pricing',
-      },
-    },
-    available: { type: 'number', description: 'Quantity of available seats' },
-    flights: {
-      type: 'array',
-      items: {
-        $ref: '#/components/schemas/Flight',
       },
     },
   },
@@ -265,28 +249,11 @@ export const flightIdParams = {
   },
 };
 
-// Flat shape actually produced by the (outdated) flight generator, kept
-// separate from `flightSchema` until the generator is updated to match it.
-export const flightResultSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    from: { type: 'string' },
-    to: { type: 'string' },
-    date: { type: 'string' },
-    departure: { type: 'string' },
-    arrival: { type: 'string' },
-    airline: { type: 'string' },
-    flightNumber: { type: 'string' },
-    price: { type: 'number' },
-    available: { type: 'number' },
-  },
-};
 
 // Self-contained (no $ref) shape actually produced by findDirectFlights + groupRoutes/generator.ts, used for the
 // search response so fastify's serializer doesn't strip the real route/flight fields down to
 // the old flat `flightResultSchema` shape.
-// v1: flightTimeHours is formatted as HH:MM string; flightDistanceKms is integer.
+// flightTimeHours is formatted as HH:MM string; flightDistanceKms is integer.
 const routeResultFlightSchema = {
   type: 'object',
   properties: {
