@@ -5,7 +5,8 @@ import { findDirectFlights, findConnectingRoutes, applyTimeFlow, groupRoutes } f
 import { TravelStore } from '../standard/store.js';
 import { logFlow } from '../../../core/logger.js';
 import type { Flight, Route, Airport, City } from '../standard/types.js';
-import type { V1Airport } from './types.js';
+import type { V1Airport, V1Flight, V1Route } from './types.js';
+import { formatFlight, formatRoute } from '../standard/formatters.js';
 
 const CACHE_TTL = 3600;
 const LARGE_CACHE_TTL = 3600 * 24;
@@ -33,7 +34,7 @@ export type SearchFlightsRequest = FastifyRequest<{ Querystring: SearchFlightsQu
 export type FlightDetailRequest = FastifyRequest<{ Params: FlightIdParams }>;
 
 export interface SearchFlightsResult extends SearchFlightsQuery {
-  routes: Route[];
+  routes: V1Route[];
 }
 
 export async function searchFlights(request: SearchFlightsRequest): Promise<SearchFlightsResult> {
@@ -75,11 +76,11 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
     from,
     to,
     date,
-    routes: routesData,
+    routes: routesData.map(formatRoute),
   };
 }
 
-export async function getFlightDetail(request: FlightDetailRequest): Promise<Flight> {
+export async function getFlightDetail(request: FlightDetailRequest): Promise<V1Flight> {
   const { id } = request.params;
 
   logFlow({
@@ -124,7 +125,7 @@ export async function getFlightDetail(request: FlightDetailRequest): Promise<Fli
     data: { id, airline: flight.travelInfo.airline },
   });
 
-  return flight;
+  return formatFlight(flight);
 }
 
 export async function listAirports(request: FastifyRequest): Promise<{ airports: V1Airport[] }> {

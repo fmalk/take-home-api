@@ -1,4 +1,4 @@
-import type { Airport, Airline, Flight } from '../standard/types.js';
+import type { Airport, Airline, Flight, Route } from '../standard/types.js';
 
 // v1 response shapes: trimmed versions of the shared travel types.
 // Composed from the base types so a v1 field drop can never silently
@@ -12,4 +12,13 @@ export type V1Airline = Omit<
   'icao' | 'hasEconomyClass' | 'hasBusinessClass' | 'hasFirstClass' | 'hasLoyaltyProgram'
 >;
 // Drops the class-broken-out shapes, keeping only the flat `price`/`available` fields.
-export type V1Flight = Omit<Flight, 'seats' | 'pricing'>;
+// Formats flightTimeHours as HH:MM string and flightDistanceKms as integer.
+export type V1Flight = Omit<Flight, 'seats' | 'pricing' | 'flightTimeHours' | 'flightDistanceKms'> & {
+  flightTimeHours: string;
+  flightDistanceKms: number;
+};
+export type V1Route = Omit<Route, 'flights' | 'flightTimeHours' | 'flightDistanceKms'> & {
+  flightTimeHours: string;
+  flightDistanceKms: number;
+  flights: V1Flight[];
+};

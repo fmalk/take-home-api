@@ -77,10 +77,6 @@ export class TravelStore {
     return flights.find((f) => f.id === id);
   }
 
-  searchFlights(flights: Flight[], from: string, to: string, date: string): Flight[] {
-    return flights.filter((f) => f.from === from && f.to === to && f.date === date);
-  }
-
   async getAirports(): Promise<Airport[]> {
     const db = await this.ensureDatabase();
 
@@ -134,21 +130,7 @@ export class TravelStore {
     const airlines: Airline[] = [];
 
     while (stmt.step()) {
-      const row = stmt.getAsObject();
-      airlines.push({
-        iata: row.iata as string,
-        icao: row.icao as string,
-        name: row.name as string,
-        country: row.country as string,
-        countryCode: row.country_code as string,
-        lat: row.lat as number,
-        long: row.lng as number,
-        isHub: row.distance_hub as boolean,
-        hasEconomyClass: row.low_cost as boolean,
-        hasBusinessClass: row.business_class as boolean,
-        hasFirstClass: row.first_class as boolean,
-        hasLoyaltyProgram: row.loyalty as boolean,
-      });
+      airlines.push(rowToAirline(stmt.getAsObject()));
     }
     stmt.free();
 
