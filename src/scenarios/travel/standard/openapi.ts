@@ -174,7 +174,7 @@ export const searchFlightsParameters = {
       {
         name: 'mode',
         in: 'query',
-        description: 'Optional. Accepts OneWay or RoundTrip',
+        description: 'Optional. Accepts OneWay or RoundTrip (case-insensitive)',
         required: false,
         schema: { type: 'string', enum: ['OneWay', 'RoundTrip'], default: 'OneWay' },
       },
