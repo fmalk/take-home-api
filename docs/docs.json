@@ -18,15 +18,25 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Project",
             "pages": ["index"]
+          },
+          {
+            "group": "Scenarios",
+            "pages": [
+              {
+                "group": "Travel",
+                "pages": [
+                  "scenarios/travel/index",
+                  "scenarios/travel/v1",
+                  "scenarios/travel/v2"
+                ]
+              }
+            ]
           }
         ]
       }
     ]
-  },
-  "footerSocials": {
-    "github": "https://github.com/fmalk/take-home-api"
   },
   "footer": {
     "socials": {
