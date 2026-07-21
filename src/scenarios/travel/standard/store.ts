@@ -67,7 +67,7 @@ function rowToAircraft(row: Record<string, unknown>): Aircraft {
   return {
     manufacturer: row.manufacturer as string,
     model: row.model as string,
-    type: row.type as Aircraft['type'],
+    hull: row.type as Aircraft['hull'],
     capacity: row.capacity as number,
   };
 }

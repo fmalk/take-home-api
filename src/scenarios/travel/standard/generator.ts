@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { randomUUID } from 'crypto';
-import type { Aircraft, Airline, Airport, Flight, Pricing, Route } from './types.js';
+import type { Aircraft, Airline, Airport, Flight, FlightPricing, RoutePricing, Route } from './types.js';
 import { TravelStore } from './store.js';
 import { convertFromUsd } from './currency.js';
 
@@ -49,7 +49,7 @@ function makeDurationHours(distanceKms: number): number {
 // category — a regional leg (either end) is too small for anything but a small aircraft, a
 // hub-to-hub leg is the only case that can justify a large aircraft, everything else (regular
 // airports, regular-to-hub feeders) gets a medium aircraft.
-function pickAircraftSize(from: Airport, to: Airport): Aircraft['type'] {
+function pickAircraftSize(from: Airport, to: Airport): Aircraft['hull'] {
   if (from.isRegional || to.isRegional) return 'small';
   if (from.isHub && to.isHub) return 'large';
   return 'medium';
@@ -57,7 +57,7 @@ function pickAircraftSize(from: Airport, to: Airport): Aircraft['type'] {
 
 function pickAircraft(from: Airport, to: Airport, aircraft: Aircraft[]): Aircraft {
   const size = pickAircraftSize(from, to);
-  return faker.helpers.arrayElement(aircraft.filter((a) => a.type === size));
+  return faker.helpers.arrayElement(aircraft.filter((a) => a.hull === size));
 }
 
 // Flight number format: "CC XXAAXAA" — airline IATA code, space, two random letters, two
@@ -71,8 +71,8 @@ function makeFlightNumber(airlineIata: string): string {
   return `${airlineIata} ${suffix}`;
 }
 
-// One seat class per Pricing object — mutually exclusive by design (see Pricing type). An
-// airline that doesn't segment cabins (no economy/business/first flags) sells a single
+// One seat class per FlightPricing object — mutually exclusive by design (see FlightPricing
+// type). An airline that doesn't segment cabins (no economy/business/first flags) sells a single
 // undifferentiated "regular" class instead.
 type SeatClass = 'regular' | 'economy' | 'businessClass' | 'firstClass';
 
@@ -109,16 +109,16 @@ function classBasePriceUsd(distanceKms: number, seatClass: SeatClass): number {
   return Math.round(base * SEAT_CLASS_PRICE_MULTIPLIER[seatClass] * (1 + jitter) * 100) / 100;
 }
 
-// One Pricing object per (seat class × currency) combination — never more than one class field
-// set per object (TRAVEL.md "Alternative currencies" / seat-class edge cases). Currencies
+// One FlightPricing object per (seat class × currency) combination — never more than one class
+// field set per object (TRAVEL.md "Alternative currencies" / seat-class edge cases). Currencies
 // offered are USD (universal) plus the departure airport's local currency, if different.
 // Every class is offered against the flight's full `available` seat count for now — classes
 // aren't cabins carved out of one shared pool yet; that weighting is a later Normalization step.
-function makePricing(distanceKms: number, available: number, airline: Airline, from: Airport): Pricing[] {
+function makePricing(distanceKms: number, available: number, airline: Airline, from: Airport): FlightPricing[] {
   const classes = pickSeatClasses(airline);
   const currencies = Array.from(new Set(['USD', from.localCurrency]));
 
-  const pricing: Pricing[] = [];
+  const pricing: FlightPricing[] = [];
   for (const seatClass of classes) {
     const priceUsd = classBasePriceUsd(distanceKms, seatClass);
     for (const currency of currencies) {
@@ -136,7 +136,7 @@ function makePricing(distanceKms: number, available: number, airline: Airline, f
 // economy if the airline segments cabins), falling back down the tier order if that's missing.
 const PRICE_TIER_ORDER: SeatClass[] = ['regular', 'economy', 'businessClass', 'firstClass'];
 
-function derivePrice(pricing: Pricing[]): number {
+function derivePrice(pricing: FlightPricing[]): number {
   for (const seatClass of PRICE_TIER_ORDER) {
     const match = pricing.find((p) => p.currency === 'USD' && p[seatClass] !== undefined);
     if (match) return match[seatClass] as number;
@@ -578,10 +578,9 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
 }
 
 // Route-level pricing collapses each leg's cheapest fare — regular or economy, premium cabins
-// excluded — into a single per-currency `minimum` (a distinct optional field on Pricing, never
-// combined with a seat-class field), summed across legs. Booking a Route always means booking
-// each leg separately, and legs can differ in which classes they sell (see aggregateRoutePricing
-// history), so "the route's price" can only ever be the cheapest bookable combination, not a
+// excluded — into a single per-currency RoutePricing `minimum`, summed across legs. Booking a
+// Route always means booking each leg separately, and legs can differ in which classes they
+// sell, so "the route's price" can only ever be the cheapest bookable combination, not a
 // specific class carried end-to-end.
 const MINIMUM_CLASS_ORDER: SeatClass[] = ['regular', 'economy'];
 
@@ -600,13 +599,13 @@ function legMinimumPriceByCurrency(leg: Flight): Map<string, number> {
 
 // Only currencies present on every leg are included — same rule as `available`: a leg that
 // can't sell in a currency blocks it for the whole route.
-function aggregateRouteMinimumPricing(sequence: Flight[]): Pricing[] {
+function aggregateRouteMinimumPricing(sequence: Flight[]): RoutePricing[] {
   if (sequence.length === 0) return [];
 
   const [firstMinimums, ...restMinimums] = sequence.map(legMinimumPriceByCurrency);
   const routeAvailable = Math.min(...sequence.map((f) => f.available));
 
-  const pricing: Pricing[] = [];
+  const pricing: RoutePricing[] = [];
   for (const [currency, firstAmount] of firstMinimums) {
     let total = firstAmount;
     let offeredOnEveryLeg = true;

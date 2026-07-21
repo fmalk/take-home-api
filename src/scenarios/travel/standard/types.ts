@@ -24,7 +24,7 @@ export interface Airport {
 export interface Aircraft {
   manufacturer: string;
   model: string;
-  type: 'small' | 'medium' | 'large';
+  hull: 'small' | 'medium' | 'large';
   capacity: number;
 }
 
@@ -40,14 +40,19 @@ export interface Airline {
   hasLoyaltyProgram: boolean;
 }
 
-export interface Pricing {
+export interface FlightPricing {
   currency: string;
   available: number;
-  minimum?: number; // used in Routes
   regular?: number;
   economy?: number;
   businessClass?: number;
   firstClass?: number;
+}
+
+export interface RoutePricing {
+  currency: string;
+  available: number;
+  minimum: number; // the minimum price allowing a seat to be bought for every leg
 }
 
 export interface Flight {
@@ -69,7 +74,7 @@ export interface Flight {
   };
   available: number;
   price: number; // simpler scenarios
-  pricing: Pricing[];
+  pricing: FlightPricing[];
 }
 
 export interface Route {
@@ -87,5 +92,5 @@ export interface Route {
   flights: Flight[];
   available: number;
   price: number; // simpler scenarios
-  pricing: Pricing[];
+  pricing: RoutePricing[];
 }

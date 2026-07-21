@@ -39,7 +39,7 @@ export const airlineSchema = {
   },
 };
 
-export const pricingSchema = {
+export const flightPricingSchema = {
   type: 'object',
   required: ['currency', 'available'],
   properties: {
@@ -49,11 +49,16 @@ export const pricingSchema = {
     economy: { type: 'number', optional: true, description: 'Price for Economy seat' },
     businessClass: { type: 'number', optional: true, description: 'Price for Business Class seat' },
     firstClass: { type: 'number', optional: true, description: 'Price for First Class seat' },
-    minimum: {
-      type: 'number',
-      optional: true,
-      description: 'Route-only: cheapest bookable fare (regular or economy) summed across legs',
-    },
+  },
+};
+
+export const routePricingSchema = {
+  type: 'object',
+  required: ['currency', 'available', 'minimum'],
+  properties: {
+    currency: { type: 'string', description: 'Code for currency (three letters)' },
+    available: { type: 'number', description: 'Number of seats available for current seat pricing' },
+    minimum: { type: 'number', description: 'Cheapest bookable fare (regular or economy) summed across legs' },
   },
 };
 
@@ -82,7 +87,7 @@ export const flightSchema = {
     pricing: {
       type: 'array',
       items: {
-        $ref: '#/components/schemas/Pricing',
+        $ref: '#/components/schemas/FlightPricing',
       },
     },
   },
@@ -114,7 +119,7 @@ export const routeSchema = {
     pricing: {
       type: 'array',
       items: {
-        $ref: '#/components/schemas/Pricing',
+        $ref: '#/components/schemas/RoutePricing',
       },
     },
   },
@@ -291,7 +296,7 @@ export const flightResultCoreProperties = {
   available: { type: 'number' },
 };
 
-export const pricingResultItemSchema = {
+export const flightPricingResultItemSchema = {
   type: 'object',
   properties: {
     currency: { type: 'string' },
@@ -300,7 +305,15 @@ export const pricingResultItemSchema = {
     economy: { type: 'number' },
     businessClass: { type: 'number' },
     firstClass: { type: 'number' },
-    minimum: { type: 'number', description: 'Route-only: cheapest bookable fare, summed across legs' },
+  },
+};
+
+export const routePricingResultItemSchema = {
+  type: 'object',
+  properties: {
+    currency: { type: 'string' },
+    available: { type: 'number' },
+    minimum: { type: 'number', description: 'Cheapest bookable fare, summed across legs' },
   },
 };
 
@@ -389,7 +402,8 @@ export const travelSchemas = {
   City: citySchema,
   Airport: airportSchema,
   Airline: airlineSchema,
-  Pricing: pricingSchema,
+  FlightPricing: flightPricingSchema,
+  RoutePricing: routePricingSchema,
   Flight: flightSchema,
   Route: routeSchema,
 };
