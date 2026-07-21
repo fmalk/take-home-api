@@ -26,11 +26,16 @@ function toV2Airport({
   return airport;
 }
 
-// v2 flights/routes drop the flat `price` simplification and keep the per-class `pricing` breakdown.
-function toV2Flight({ price: _price, ...flight }: FormattedFlight): V2Flight {
-  return flight;
+// v2 flights drop the flat `price` simplification and only ever sell the `regular` tier
+// (economy/business/first stay reserved for a future, more granular version), across every
+// currency the flight offers.
+function toV2Flight({ price: _price, pricing, ...flight }: FormattedFlight): V2Flight {
+  return { ...flight, pricing: pricing.filter((p) => p.regular !== undefined) };
 }
 
+// v2 routes drop the flat `price` simplification too; their `pricing` is already the
+// cheapest-bookable-fare `minimum` per currency (see aggregateRouteMinimumPricing in
+// standard/generator.ts), not a specific seat class, so it needs no further trimming here.
 function toV2Route({ price: _price, flights, ...route }: FormattedRoute): V2Route {
   return { ...route, flights: flights.map(toV2Flight) };
 }

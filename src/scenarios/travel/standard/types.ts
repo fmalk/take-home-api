@@ -43,6 +43,7 @@ export interface Airline {
 export interface Pricing {
   currency: string;
   available: number;
+  minimum?: number; // used in Routes
   regular?: number;
   economy?: number;
   businessClass?: number;

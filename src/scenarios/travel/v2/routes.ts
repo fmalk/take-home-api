@@ -6,9 +6,8 @@ import {
   baseListAirportsSchema,
   baseListCitiesSchema,
   flightResultCoreProperties,
-  pricingResultItemSchema,
 } from '../standard/openapi.js';
-import { v2AirportSchema } from './openapi.js';
+import { v2AirportSchema, v2FlightPricingItemSchema, v2RoutePricingItemSchema } from './openapi.js';
 import {
   searchFlights,
   getFlightDetail,
@@ -19,16 +18,12 @@ import {
 } from './controller.js';
 import { servePostmanCollection } from '../../../utils/postman-handler.js';
 
-// v2 hides the flat `price` simplification and exposes the per-class `pricing` breakdown
-// instead, on both the Flight and Route result shapes.
-const pricingResultSchema = {
-  type: 'array',
-  items: pricingResultItemSchema,
-};
-
+// v2 hides the flat `price` simplification. Flights show the `regular`-tier pricing in every
+// currency they offer; Routes show only the cheapest bookable `minimum` fare per currency,
+// since a Route's legs may not all sell the same class.
 const flightResultSchema = {
   type: 'object',
-  properties: { ...flightResultCoreProperties, pricing: pricingResultSchema },
+  properties: { ...flightResultCoreProperties, pricing: { type: 'array', items: v2FlightPricingItemSchema } },
 };
 
 const routeResultSchema = {
@@ -44,7 +39,7 @@ const routeResultSchema = {
       items: flightResultSchema,
     },
     available: { type: 'number' },
-    pricing: pricingResultSchema,
+    pricing: { type: 'array', items: v2RoutePricingItemSchema },
   },
 };
 

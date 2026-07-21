@@ -80,7 +80,7 @@ After a valid Flight[] sequence is built (direct or via hub path), aggregate Fli
 - `departure` / `arrival`: inherit from first and last Flight respectively.
 - `available` (seats): minimum across all legs (a 0-seat leg blocks the whole route).
 - `price`: sum across all legs.
-- `pricing`: per (seat class × currency) combo, sum that combo's price across every leg; keep the minimum available seats across legs. Only combos every leg actually offers are included — a leg missing a class blocks that class for the whole route, same as `available`.
+- `pricing`: per currency, the cheapest bookable fare (regular or economy, whichever is lower) on each leg, summed across legs, exposed as a `minimum` field (not a specific seat class — a Route can't promise one class end-to-end when legs may not all sell it). Only currencies every leg actually offers are included, same rule as `available`.
 
 ## Time Flow
 

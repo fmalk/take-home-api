@@ -49,6 +49,11 @@ export const pricingSchema = {
     economy: { type: 'number', optional: true, description: 'Price for Economy seat' },
     businessClass: { type: 'number', optional: true, description: 'Price for Business Class seat' },
     firstClass: { type: 'number', optional: true, description: 'Price for First Class seat' },
+    minimum: {
+      type: 'number',
+      optional: true,
+      description: 'Route-only: cheapest bookable fare (regular or economy) summed across legs',
+    },
   },
 };
 
@@ -295,6 +300,7 @@ export const pricingResultItemSchema = {
     economy: { type: 'number' },
     businessClass: { type: 'number' },
     firstClass: { type: 'number' },
+    minimum: { type: 'number', description: 'Route-only: cheapest bookable fare, summed across legs' },
   },
 };
 

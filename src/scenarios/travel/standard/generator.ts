@@ -76,10 +76,10 @@ function makeFlightNumber(airlineIata: string): string {
 // undifferentiated "regular" class instead.
 type SeatClass = 'regular' | 'economy' | 'businessClass' | 'firstClass';
 
-// Premium classes cost more per km; see classBasePriceUsd below.
+// Premium classes cost more per km, economy undercuts regular; see classBasePriceUsd below.
 const SEAT_CLASS_PRICE_MULTIPLIER: Record<SeatClass, number> = {
   regular: 1,
-  economy: 1,
+  economy: 0.7,
   businessClass: 2.5,
   firstClass: 4.5,
 };
@@ -577,35 +577,51 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
   return sequences;
 }
 
-// Route-level pricing per (seat class × currency) combo: sum that combo's price across every
-// leg, keep the minimum available across legs (a 0-seat leg blocks the whole route, same as the
-// top-level `available`) — and only include combos every leg actually offers, since a leg that
-// doesn't sell e.g. businessClass means the itinerary can't be booked in that class end-to-end.
-function aggregateRoutePricing(sequence: Flight[]): Pricing[] {
-  const [first, ...rest] = sequence;
-  if (!first) return [];
+// Route-level pricing collapses each leg's cheapest fare — regular or economy, premium cabins
+// excluded — into a single per-currency `minimum` (a distinct optional field on Pricing, never
+// combined with a seat-class field), summed across legs. Booking a Route always means booking
+// each leg separately, and legs can differ in which classes they sell (see aggregateRoutePricing
+// history), so "the route's price" can only ever be the cheapest bookable combination, not a
+// specific class carried end-to-end.
+const MINIMUM_CLASS_ORDER: SeatClass[] = ['regular', 'economy'];
+
+function legMinimumPriceByCurrency(leg: Flight): Map<string, number> {
+  const minimums = new Map<string, number>();
+  for (const entry of leg.pricing) {
+    const seatClass = MINIMUM_CLASS_ORDER.find((c) => entry[c] !== undefined);
+    if (!seatClass) continue;
+
+    const price = entry[seatClass] as number;
+    const current = minimums.get(entry.currency);
+    if (current === undefined || price < current) minimums.set(entry.currency, price);
+  }
+  return minimums;
+}
+
+// Only currencies present on every leg are included — same rule as `available`: a leg that
+// can't sell in a currency blocks it for the whole route.
+function aggregateRouteMinimumPricing(sequence: Flight[]): Pricing[] {
+  if (sequence.length === 0) return [];
+
+  const [firstMinimums, ...restMinimums] = sequence.map(legMinimumPriceByCurrency);
+  const routeAvailable = Math.min(...sequence.map((f) => f.available));
 
   const pricing: Pricing[] = [];
-  for (const seatClass of PRICE_TIER_ORDER) {
-    for (const firstLegEntry of first.pricing.filter((p) => p[seatClass] !== undefined)) {
-      const currency = firstLegEntry.currency;
-      let total = firstLegEntry[seatClass] as number;
-      let minAvailable = firstLegEntry.available;
-      let offeredOnEveryLeg = true;
+  for (const [currency, firstAmount] of firstMinimums) {
+    let total = firstAmount;
+    let offeredOnEveryLeg = true;
 
-      for (const leg of rest) {
-        const legEntry = leg.pricing.find((p) => p.currency === currency && p[seatClass] !== undefined);
-        if (!legEntry) {
-          offeredOnEveryLeg = false;
-          break;
-        }
-        total += legEntry[seatClass] as number;
-        minAvailable = Math.min(minAvailable, legEntry.available);
+    for (const legMinimums of restMinimums) {
+      const amount = legMinimums.get(currency);
+      if (amount === undefined) {
+        offeredOnEveryLeg = false;
+        break;
       }
+      total += amount;
+    }
 
-      if (offeredOnEveryLeg) {
-        pricing.push({ currency, available: minAvailable, [seatClass]: Math.round(total * 100) / 100 });
-      }
+    if (offeredOnEveryLeg) {
+      pricing.push({ currency, available: routeAvailable, minimum: Math.round(total * 100) / 100 });
     }
   }
   return pricing;
@@ -627,7 +643,7 @@ export function groupRoutes(sequences: Flight[][]): Route[] {
       flights: seq,
       available: Math.min(...seq.map((f) => f.available)),
       price: seq.reduce((sum, f) => sum + f.price, 0),
-      pricing: aggregateRoutePricing(seq),
+      pricing: aggregateRouteMinimumPricing(seq),
     };
   });
 }
