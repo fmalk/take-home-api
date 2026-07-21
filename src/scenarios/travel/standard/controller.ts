@@ -86,7 +86,13 @@ async function findRoutesForLeg(from: string, to: string, date: string, reqId: s
 
 export async function searchFlightsBase(request: SearchFlightsRequest): Promise<SearchFlightsBaseResult> {
   const { from, to, departureDate, returnDate } = request.query;
-  const mode: SearchMode = request.query.mode ?? 'OneWay';
+  const modeParam = request.query.mode?.toLowerCase();
+
+  if (modeParam && modeParam !== 'oneway' && modeParam !== 'roundtrip') {
+    throw new ApiError(400, 'INVALID_MODE', "mode must be 'OneWay' or 'RoundTrip'");
+  }
+
+  const mode: SearchMode = (modeParam === 'roundtrip' ? 'RoundTrip' : 'OneWay');
 
   if (mode === 'RoundTrip' && !returnDate) {
     throw new ApiError(400, 'RETURN_DATE_REQUIRED', 'returnDate is required when mode is RoundTrip');
