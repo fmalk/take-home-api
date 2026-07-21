@@ -17,7 +17,6 @@ async function main(): Promise<void> {
     await app.listen({ port: config.PORT, host: config.HOST });
 
     getLogger().info(`Server listening on http://${config.HOST}:${config.PORT}`);
-    getLogger().info('API docs available at http://{HOST}:{PORT}/docs');
   } catch (error) {
     getLogger().error(error);
     process.exit(1);

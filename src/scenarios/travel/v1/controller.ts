@@ -35,9 +35,7 @@ function toV1Flight({ pricing: _pricing, ...flight }: FormattedFlight): V1Flight
   return flight;
 }
 
-// Note: only per-Flight `pricing` is dropped here — the Route-level `pricing` (aggregated from
-// the first Flight in groupRoutes) is intentionally kept, matching the pre-existing V1Route shape.
-function toV1Route({ flights, ...route }: FormattedRoute): V1Route {
+function toV1Route({ pricing: _pricing, flights, ...route }: FormattedRoute): V1Route {
   return { ...route, flights: flights.map(toV1Flight) };
 }
 

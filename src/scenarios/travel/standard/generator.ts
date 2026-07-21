@@ -1,7 +1,8 @@
 import { faker } from '@faker-js/faker';
 import { randomUUID } from 'crypto';
-import type { Aircraft, Airline, Airport, Flight, Route } from './types.js';
+import type { Aircraft, Airline, Airport, Flight, Pricing, Route } from './types.js';
 import { TravelStore } from './store.js';
+import { convertFromUsd } from './currency.js';
 
 const store = new TravelStore();
 
@@ -70,13 +71,86 @@ function makeFlightNumber(airlineIata: string): string {
   return `${airlineIata} ${suffix}`;
 }
 
-// Pricing/seat enrichment happens in later Search-Flow stages that are still `To be
-// determined` in FLIGHT_GENERATOR.md. Timestamps here are placeholders (the raw query date) —
-// applyTimeFlow overwrites them once a Route's departure slot is known.
+// One seat class per Pricing object — mutually exclusive by design (see Pricing type). An
+// airline that doesn't segment cabins (no economy/business/first flags) sells a single
+// undifferentiated "regular" class instead.
+type SeatClass = 'regular' | 'economy' | 'businessClass' | 'firstClass';
+
+// Premium classes cost more per km; see classBasePriceUsd below.
+const SEAT_CLASS_PRICE_MULTIPLIER: Record<SeatClass, number> = {
+  regular: 1,
+  economy: 1,
+  businessClass: 2.5,
+  firstClass: 4.5,
+};
+
+// `regular` is a baseline every airline serves, alongside whichever premium tiers it's flagged
+// for. An airline serving business/first also serves regular (there's no premium-only carrier);
+// an airline serving economy serves only economy+regular (no premium tiers). Only four combos
+// are possible: R, E+R, R+B, R+B+F.
+function pickSeatClasses(airline: Airline): SeatClass[] {
+  if (airline.hasEconomyClass) return ['regular', 'economy'];
+
+  const classes: SeatClass[] = ['regular'];
+  if (airline.hasBusinessClass) classes.push('businessClass');
+  if (airline.hasFirstClass) classes.push('firstClass');
+  return classes;
+}
+
+const BASE_PRICE_PER_KM_USD = 0.12;
+const MIN_BASE_PRICE_USD = 35;
+const PRICE_JITTER_RATIO = 0.15;
+
+// Dynamic pricing per FLIGHT_GENERATOR.md's Pricing stage: distance-driven base fare, scaled by
+// cabin class, jittered per class so identical-distance legs don't produce identical fares.
+function classBasePriceUsd(distanceKms: number, seatClass: SeatClass): number {
+  const base = Math.max(distanceKms * BASE_PRICE_PER_KM_USD, MIN_BASE_PRICE_USD);
+  const jitter = faker.number.float({ min: -PRICE_JITTER_RATIO, max: PRICE_JITTER_RATIO });
+  return Math.round(base * SEAT_CLASS_PRICE_MULTIPLIER[seatClass] * (1 + jitter) * 100) / 100;
+}
+
+// One Pricing object per (seat class × currency) combination — never more than one class field
+// set per object (TRAVEL.md "Alternative currencies" / seat-class edge cases). Currencies
+// offered are USD (universal) plus the departure airport's local currency, if different.
+// Every class is offered against the flight's full `available` seat count for now — classes
+// aren't cabins carved out of one shared pool yet; that weighting is a later Normalization step.
+function makePricing(distanceKms: number, available: number, airline: Airline, from: Airport): Pricing[] {
+  const classes = pickSeatClasses(airline);
+  const currencies = Array.from(new Set(['USD', from.localCurrency]));
+
+  const pricing: Pricing[] = [];
+  for (const seatClass of classes) {
+    const priceUsd = classBasePriceUsd(distanceKms, seatClass);
+    for (const currency of currencies) {
+      pricing.push({
+        currency,
+        available,
+        [seatClass]: convertFromUsd(priceUsd, currency),
+      });
+    }
+  }
+  return pricing;
+}
+
+// v1's flat `price` simplification: the USD price of the flight's base-tier class (regular, or
+// economy if the airline segments cabins), falling back down the tier order if that's missing.
+const PRICE_TIER_ORDER: SeatClass[] = ['regular', 'economy', 'businessClass', 'firstClass'];
+
+function derivePrice(pricing: Pricing[]): number {
+  for (const seatClass of PRICE_TIER_ORDER) {
+    const match = pricing.find((p) => p.currency === 'USD' && p[seatClass] !== undefined);
+    if (match) return match[seatClass] as number;
+  }
+  return 0;
+}
+
+// Timestamps here are placeholders (the raw query date) — applyTimeFlow overwrites them once a
+// Route's departure slot is known.
 function makeFlight(from: Airport, to: Airport, date: string, airline: Airline, aircraftList: Aircraft[]): Flight {
   const flightDistanceKms = haversineKm(from, to);
   const aircraft = pickAircraft(from, to, aircraftList);
   const available = faker.number.int({ min: 10, max: aircraft.capacity });
+  const pricing = makePricing(flightDistanceKms, available, airline, from);
   return {
     id: generateId(),
     flightTimeHours: makeDurationHours(flightDistanceKms),
@@ -94,8 +168,8 @@ function makeFlight(from: Airport, to: Airport, date: string, airline: Airline, 
       aircraft: `${aircraft.manufacturer} ${aircraft.model}`,
       flightNumber: makeFlightNumber(airline.iata),
     },
-    price: 0,
-    pricing: [{ currency: 'USD', available, regular: 0 }],
+    price: derivePrice(pricing),
+    pricing,
     available,
   };
 }
@@ -503,9 +577,43 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
   return sequences;
 }
 
+// Route-level pricing per (seat class × currency) combo: sum that combo's price across every
+// leg, keep the minimum available across legs (a 0-seat leg blocks the whole route, same as the
+// top-level `available`) — and only include combos every leg actually offers, since a leg that
+// doesn't sell e.g. businessClass means the itinerary can't be booked in that class end-to-end.
+function aggregateRoutePricing(sequence: Flight[]): Pricing[] {
+  const [first, ...rest] = sequence;
+  if (!first) return [];
+
+  const pricing: Pricing[] = [];
+  for (const seatClass of PRICE_TIER_ORDER) {
+    for (const firstLegEntry of first.pricing.filter((p) => p[seatClass] !== undefined)) {
+      const currency = firstLegEntry.currency;
+      let total = firstLegEntry[seatClass] as number;
+      let minAvailable = firstLegEntry.available;
+      let offeredOnEveryLeg = true;
+
+      for (const leg of rest) {
+        const legEntry = leg.pricing.find((p) => p.currency === currency && p[seatClass] !== undefined);
+        if (!legEntry) {
+          offeredOnEveryLeg = false;
+          break;
+        }
+        total += legEntry[seatClass] as number;
+        minAvailable = Math.min(minAvailable, legEntry.available);
+      }
+
+      if (offeredOnEveryLeg) {
+        pricing.push({ currency, available: minAvailable, [seatClass]: Math.round(total * 100) / 100 });
+      }
+    }
+  }
+  return pricing;
+}
+
 // Wrap ordered flight sequences into Routes. Route metadata (time, distance, price,
-// availability) is aggregated across the sequence — the Normalization step in
-// FLIGHT_GENERATOR.md. Pricing is still stubbed pending the TBD Pricing stage.
+// availability, pricing) is aggregated across the sequence — the Normalization step in
+// FLIGHT_GENERATOR.md.
 export function groupRoutes(sequences: Flight[][]): Route[] {
   return sequences.map((seq) => {
     const first = seq[0];
@@ -519,7 +627,7 @@ export function groupRoutes(sequences: Flight[][]): Route[] {
       flights: seq,
       available: Math.min(...seq.map((f) => f.available)),
       price: seq.reduce((sum, f) => sum + f.price, 0),
-      pricing: first.pricing,
+      pricing: aggregateRoutePricing(seq),
     };
   });
 }

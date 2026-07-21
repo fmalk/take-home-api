@@ -17,7 +17,7 @@ export type V1Flight = Omit<Flight, 'seats' | 'pricing' | 'flightTimeHours' | 'f
   flightTimeHours: string;
   flightDistanceKms: number;
 };
-export type V1Route = Omit<Route, 'flights' | 'flightTimeHours' | 'flightDistanceKms'> & {
+export type V1Route = Omit<Route, 'flights' | 'pricing' | 'flightTimeHours' | 'flightDistanceKms'> & {
   flightTimeHours: string;
   flightDistanceKms: number;
   flights: V1Flight[];
