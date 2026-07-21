@@ -40,13 +40,25 @@ function toV2Route({ price: _price, flights, ...route }: FormattedRoute): V2Rout
   return { ...route, flights: flights.map(toV2Flight) };
 }
 
-export interface SearchFlightsResult extends SearchFlightsQuery {
-  routes: V2Route[];
+export interface SearchFlightsResult extends Omit<SearchFlightsQuery, 'mode'> {
+  id: string;
+  mode: 'OneWay' | 'RoundTrip';
+  outbound: V2Route[];
+  inbound?: V2Route[];
 }
 
 export async function searchFlights(request: SearchFlightsRequest): Promise<SearchFlightsResult> {
-  const { from, to, date, routes } = await searchFlightsBase(request);
-  return { from, to, date, routes: routes.map(toV2Route) };
+  const { from, to, departureDate, returnDate, id, mode, outbound, inbound } = await searchFlightsBase(request);
+  return {
+    from,
+    to,
+    departureDate,
+    returnDate,
+    id,
+    mode,
+    outbound: outbound.map(toV2Route),
+    inbound: inbound?.map(toV2Route),
+  };
 }
 
 export async function getFlightDetail(request: FlightDetailRequest): Promise<V2Flight> {

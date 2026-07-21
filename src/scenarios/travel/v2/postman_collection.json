@@ -65,12 +65,12 @@
       "response": []
     },
     {
-      "name": "Search",
+      "name": "Search (OneWay)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/search?from=CNF&to=GRU&date=2026-11-20",
+          "raw": "http://localhost:3000/api/travel/v2/search?from=CNF&to=GRU&departureDate=2026-11-20",
           "protocol": "http",
           "host": ["localhost"],
           "port": "3000",
@@ -85,8 +85,45 @@
               "value": "GRU"
             },
             {
-              "key": "date",
+              "key": "departureDate",
               "value": "2026-11-20"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search (RoundTrip)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/api/travel/v2/search?from=CNF&to=GRU&departureDate=2026-11-20&mode=RoundTrip&returnDate=2026-11-27",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "travel", "v2", "search"],
+          "query": [
+            {
+              "key": "from",
+              "value": "CNF"
+            },
+            {
+              "key": "to",
+              "value": "GRU"
+            },
+            {
+              "key": "departureDate",
+              "value": "2026-11-20"
+            },
+            {
+              "key": "mode",
+              "value": "RoundTrip"
+            },
+            {
+              "key": "returnDate",
+              "value": "2026-11-27"
             }
           ]
         }

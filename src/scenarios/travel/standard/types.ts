@@ -94,3 +94,12 @@ export interface Route {
   price: number; // simpler scenarios
   pricing: RoutePricing[];
 }
+
+// Generic over the route shape so callers can plug in Route (raw) or FormattedRoute
+// (API-facing) instead of duplicating this shape per representation.
+export interface SearchResults<R = Route> {
+  id: string;
+  mode: 'OneWay' | 'RoundTrip';
+  outbound: R[];
+  inbound?: R[]; // only present when mode is 'RoundTrip'
+}

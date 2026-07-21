@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Scenario } from '../../../types/index.js';
+import type { Scenario } from '../../../types.js';
 import { buildTravelEndpoints } from '../standard/openapi.js';
 import { registerRoutes } from './routes.js';
 

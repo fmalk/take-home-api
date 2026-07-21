@@ -70,7 +70,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v1/search?from=CNF&to=GRU&date=2026-11-20",
+          "raw": "http://localhost:3000/api/travel/v1/search?from=CNF&to=GRU&departureDate=2026-11-20",
           "protocol": "http",
           "host": ["localhost"],
           "port": "3000",
@@ -85,7 +85,7 @@
               "value": "GRU"
             },
             {
-              "key": "date",
+              "key": "departureDate",
               "value": "2026-11-20"
             }
           ]

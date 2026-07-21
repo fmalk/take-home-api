@@ -6,6 +6,7 @@ import {
   baseListAirportsSchema,
   baseListCitiesSchema,
   flightResultCoreProperties,
+  roundTripSearchFlightsQuerystring,
 } from '../standard/openapi.js';
 import { v2AirportSchema, v2FlightPricingItemSchema, v2RoutePricingItemSchema } from './openapi.js';
 import {
@@ -43,14 +44,19 @@ const routeResultSchema = {
   },
 };
 
+// v2 additionally accepts `mode`/`returnDate` for RoundTrip searches, and its response carries
+// the RoundTrip's `inbound` leg alongside `outbound` (v1 only ever has `outbound`).
 const searchFlightsSchema = {
   ...baseSearchFlightsSchema,
+  querystring: roundTripSearchFlightsQuerystring,
   response: {
     200: {
       ...baseSearchFlightsSchema.response[200],
       properties: {
         ...baseSearchFlightsSchema.response[200].properties,
-        routes: { type: 'array', items: routeResultSchema },
+        returnDate: { type: 'string' },
+        outbound: { type: 'array', items: routeResultSchema },
+        inbound: { type: 'array', items: routeResultSchema },
       },
     },
   },

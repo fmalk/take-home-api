@@ -172,10 +172,24 @@ export const searchFlightsParameters = {
         schema: { type: 'string', minLength: 3, maxLength: 3 },
       },
       {
-        name: 'date',
+        name: 'mode',
+        in: 'query',
+        description: 'Optional. Accepts OneWay or RoundTrip',
+        required: false,
+        schema: { type: 'string', enum: ['OneWay', 'RoundTrip'], default: 'OneWay' },
+      },
+      {
+        name: 'departureDate',
         in: 'query',
         description: 'Departure date (YYYY-MM-DD)',
         required: true,
+        schema: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      },
+      {
+        name: 'returnDate',
+        in: 'query',
+        description: 'Optional. Return date (YYYY-MM-DD)',
+        required: false,
         schema: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
       },
     ],
@@ -188,7 +202,14 @@ export const searchFlightsParameters = {
               type: 'object',
               properties: {
                 id: { type: 'string' },
-                routes: {
+                mode: { type: 'string', enum: ['OneWay', 'RoundTrip'] },
+                outbound: {
+                  type: 'array',
+                  items: {
+                    $ref: '#/components/schemas/Route',
+                  },
+                },
+                inbound: {
                   type: 'array',
                   items: {
                     $ref: '#/components/schemas/Route',
@@ -244,11 +265,25 @@ export const getFlightParameters = {
 
 export const searchFlightsQuerystring = {
   type: 'object',
-  required: ['from', 'to', 'date'],
+  required: ['from', 'to', 'departureDate'],
+  // v1 only ever does a one-way search — reject mode/returnDate outright rather than
+  // silently ignoring them, so a client can't accidentally get round-trip behavior from v1.
+  additionalProperties: false,
   properties: {
     from: { type: 'string', minLength: 3, maxLength: 3 },
     to: { type: 'string', minLength: 3, maxLength: 3 },
-    date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+    departureDate: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+  },
+};
+
+// v2+ additionally accepts `mode` (defaulting to OneWay) and, when mode is RoundTrip, the
+// required `returnDate` for the inbound leg.
+export const roundTripSearchFlightsQuerystring = {
+  ...searchFlightsQuerystring,
+  properties: {
+    ...searchFlightsQuerystring.properties,
+    mode: { type: 'string', enum: ['OneWay', 'RoundTrip'], default: 'OneWay' },
+    returnDate: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
   },
 };
 
@@ -346,8 +381,10 @@ export const baseSearchFlightsSchema = {
       properties: {
         from: { type: 'string' },
         to: { type: 'string' },
-        date: { type: 'string' },
-        routes: {
+        departureDate: { type: 'string' },
+        id: { type: 'string' },
+        mode: { type: 'string', enum: ['OneWay', 'RoundTrip'] },
+        outbound: {
           type: 'array',
           items: routeResultSchema,
         },
