@@ -239,7 +239,7 @@ export const loginParameters = {
           schema: {
             type: 'object',
             properties: {
-              username: { type: 'string' },
+              username: { type: 'string', minLength: 5, description: 'At least 5 characters' },
               password: { type: 'string', description: "'tr@vel' followed by the first 5 letters of the username" },
             },
           },
@@ -499,7 +499,7 @@ export const loginBodySchema = {
   type: 'object',
   required: ['username', 'password'],
   properties: {
-    username: { type: 'string' },
+    username: { type: 'string', minLength: 5 },
     password: { type: 'string' },
   },
 };

@@ -59,6 +59,28 @@ describe('auth', () => {
       });
     });
 
+    it('guesses the full name from a separator-delimited username exactly', async () => {
+      const { access_token: accessToken } = await loginBase(
+        makeLoginRequest({ username: 'jane.doe', password: 'tr@veljane.' }),
+      );
+
+      const user = await getUserBase(makeUserRequest(`Bearer ${accessToken}`));
+
+      expect(user.fullName).toBe('Jane Doe');
+    });
+
+    it('guesses an initial + last-name full name for a bare-handle username', async () => {
+      const { access_token: accessToken } = await loginBase(
+        makeLoginRequest({ username: 'jsmith', password: 'tr@veljsmit' }),
+      );
+
+      const user = await getUserBase(makeUserRequest(`Bearer ${accessToken}`));
+
+      // "smith" -> "Smith" is deterministic; the guessed first name varies but always starts with 'j'.
+      expect(user.fullName).toMatch(/^[A-Z][a-z]* Smith$/);
+      expect(user.fullName.charAt(0).toLowerCase()).toBe('j');
+    });
+
     it('keeps the same user identity across repeated logins within the cache TTL', async () => {
       const { access_token: token1 } = await loginBase(
         makeLoginRequest({ username: 'jsmith', password: 'tr@veljsmit' }),

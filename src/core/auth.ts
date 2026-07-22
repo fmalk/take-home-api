@@ -52,6 +52,45 @@ function hashUsername(username: string): number {
   return Math.abs(hash);
 }
 
+function capitalize(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+// Hunts for a Faker first name starting with the given initial, giving up (and returning
+// whatever it landed on) after a bounded number of tries — an occasional initial mismatch is
+// the quirk, not a bug; see guessFullName.
+function guessFirstName(initial: string): string {
+  const target = initial.toUpperCase();
+  let candidate = faker.person.firstName();
+  for (let attempt = 0; attempt < 40 && candidate.charAt(0).toUpperCase() !== target; attempt++) {
+    candidate = faker.person.firstName();
+  }
+  return candidate;
+}
+
+// Approximates a display name from the username itself rather than rolling a fully unrelated
+// Faker name: "john.smith"/"john_smith"/"john-smith" splits cleanly into "John Smith"; a bare
+// handle with no separator (e.g. "jsmith") is treated as initial + last name, guessing a first
+// name that starts with that initial. It's a deliberately imperfect approximation, not a real
+// name — for "jsmith" that might land on "Jasper Smith" one run and "June Smith" another.
+function guessFullName(username: string): string {
+  const handle = username.replace(/\d+$/, '');
+  const parts = handle.split(/[._-]+/).filter(Boolean);
+
+  if (parts.length > 1) {
+    return parts.map(capitalize).join(' ');
+  }
+
+  if (handle.length < 2) {
+    return faker.person.fullName();
+  }
+
+  const firstName = guessFirstName(handle.charAt(0));
+  const lastName = capitalize(handle.slice(1));
+
+  return `${firstName} ${lastName}`;
+}
+
 export interface AuthController {
   loginBase(request: LoginRequest): Promise<LoginResult>;
   getUserBase(request: UserRequest): Promise<AuthUser>;
@@ -68,9 +107,9 @@ export function createAuthController(config: AuthConfig): AuthController {
     return {
       id: faker.string.uuid(),
       username,
-      fullName: faker.person.fullName(),
+      fullName: guessFullName(username),
       email: faker.internet.email({ firstName: username }),
-      phone: faker.phone.number('international'),
+      phone: faker.phone.number({ style: 'international' }),
       avatarUrl: faker.image.avatar(),
     };
   }
