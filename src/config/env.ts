@@ -6,7 +6,7 @@ interface Config {
   ENABLE_ADMIN: boolean;
 }
 
-function getEnv(key: string, defaultValue: string): string {
+export function getEnv(key: string, defaultValue: string): string {
   const value = process.env[key];
   if (!value && defaultValue === undefined) {
     throw new Error(`Missing required environment variable: ${key}`);

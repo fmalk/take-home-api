@@ -227,6 +227,65 @@ export const searchFlightsParameters = {
   },
 };
 
+export const loginParameters = {
+  post: {
+    summary: 'Log in',
+    description: 'Exchange a username/password pair for a bearer access token',
+    tags: [],
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            properties: {
+              username: { type: 'string' },
+              password: { type: 'string', description: "'tr@vel' followed by the first 5 letters of the username" },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Successful login',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                access_token: { type: 'string' },
+                token_type: { type: 'string', enum: ['Bearer'] },
+                expires_in: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+      '401': {
+        description: 'Invalid username or password',
+      },
+    },
+  },
+};
+
+export const userParameters = {
+  get: {
+    summary: 'Get authenticated user',
+    description: 'Retrieve the profile of the user identified by the bearer access token',
+    tags: [],
+    security: [{ bearerAuth: [] }],
+    responses: {
+      '200': {
+        description: 'Authenticated user profile',
+      },
+      '401': {
+        description: 'Missing or invalid bearer token',
+      },
+    },
+  },
+};
+
 export const getFlightParameters = {
   get: {
     summary: 'Get flight details',
@@ -434,6 +493,53 @@ export const baseListCitiesSchema = {
   },
 };
 
+// Auth: OAuth-standard `access_token`/`token_type`/`expires_in` field names for the login
+// response (per RFC 6749 section 5.1), unlike the rest of this API's camelCase JSON.
+export const loginBodySchema = {
+  type: 'object',
+  required: ['username', 'password'],
+  properties: {
+    username: { type: 'string' },
+    password: { type: 'string' },
+  },
+};
+
+export const loginResponseSchema = {
+  type: 'object',
+  required: ['access_token', 'token_type', 'expires_in'],
+  properties: {
+    access_token: { type: 'string' },
+    token_type: { type: 'string', enum: ['Bearer'] },
+    expires_in: { type: 'number' },
+  },
+};
+
+export const userResponseSchema = {
+  type: 'object',
+  required: ['id', 'username', 'fullName', 'email', 'phone', 'avatarUrl'],
+  properties: {
+    id: { type: 'string' },
+    username: { type: 'string' },
+    fullName: { type: 'string' },
+    email: { type: 'string' },
+    phone: { type: 'string' },
+    avatarUrl: { type: 'string' },
+  },
+};
+
+export const baseLoginSchema = {
+  body: loginBodySchema,
+  response: {
+    200: loginResponseSchema,
+  },
+};
+
+export const baseUserSchema = {
+  response: {
+    200: userResponseSchema,
+  },
+};
+
 export const travelSchemas = {
   City: citySchema,
   Airport: airportSchema,
@@ -468,5 +574,14 @@ export function buildTravelEndpoints(version: string): Record<string, unknown> {
     [`/api/travel/${version}/airports`]: airportsParameters,
     [`/api/travel/${version}/search`]: searchFlightsParameters,
     [`/api/travel/${version}/flights/{id}`]: getFlightParameters,
+  };
+}
+
+// Login/user aren't part of every version (see travel/v2/routes.ts for which versions mount
+// them), so they're built separately rather than folded into buildTravelEndpoints.
+export function buildAuthEndpoints(version: string): Record<string, unknown> {
+  return {
+    [`/api/travel/${version}/login`]: loginParameters,
+    [`/api/travel/${version}/user`]: userParameters,
   };
 }

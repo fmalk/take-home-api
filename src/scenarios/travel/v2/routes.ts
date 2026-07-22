@@ -5,6 +5,8 @@ import {
   baseFlightDetailSchema,
   baseListAirportsSchema,
   baseListCitiesSchema,
+  baseLoginSchema,
+  baseUserSchema,
   flightResultCoreProperties,
   roundTripSearchFlightsQuerystring,
 } from '../standard/openapi.js';
@@ -17,7 +19,15 @@ import {
   type SearchFlightsQuery,
   type FlightIdParams,
 } from './controller.js';
+import { createAuthController, type LoginBody } from '../../../core/auth.js';
 import { servePostmanCollection } from '../../../utils/postman-handler.js';
+
+// Travel's credential rule for the shared login fixture (see core/auth.ts): password is
+// 'tr@vel' followed by the first 5 letters of the username.
+const { loginBase, getUserBase } = createAuthController({
+  namespace: 'travel',
+  passwordFor: (username) => `tr@vel${username.slice(0, 5)}`,
+});
 
 // v2 hides the flat `price` simplification. Flights show the `regular`-tier pricing in every
 // currency they offer; Routes show only the cheapest bookable `minimum` fare per currency,
@@ -82,6 +92,8 @@ const listAirportsSchema = {
   },
 };
 const listCitiesSchema = { ...baseListCitiesSchema };
+const loginSchema = { ...baseLoginSchema };
+const userSchema = { ...baseUserSchema };
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Scoped so @fastify/swagger-ui's decorators (it uses fastify-plugin internally) stay isolated
@@ -151,5 +163,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       },
       listCities,
     );
+
+    scoped.post<{ Body: LoginBody }>('/api/travel/v2/login', { schema: loginSchema }, loginBase);
+
+    scoped.get('/api/travel/v2/user', { schema: userSchema }, getUserBase);
   });
 }

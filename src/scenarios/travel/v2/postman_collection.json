@@ -65,6 +65,50 @@
       "response": []
     },
     {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"jsmith\",\n  \"password\": \"tr@veljsmit\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/travel/v2/login",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "travel", "v2", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "User",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:3000/api/travel/v2/user",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "travel", "v2", "user"]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Search (OneWay)",
       "request": {
         "method": "GET",
