@@ -4,6 +4,7 @@ import {
   flightSchema,
   flightPricingResultItemSchema,
   routePricingResultItemSchema,
+  loginBodySchema,
   omitSchemaFields,
 } from '../standard/openapi.js';
 
@@ -22,3 +23,7 @@ export const v2FlightPricingItemSchema = omitSchemaFields(flightPricingResultIte
 ]);
 // v2 routes always show RoutePricing's cheapest-bookable-fare shape as-is.
 export const v2RoutePricingItemSchema = routePricingResultItemSchema;
+
+// v2 doesn't (yet) expose the `shortLived` testing knob — reserved for v3/v4 (see
+// standard/openapi.ts's loginBodySchema).
+export const v2LoginBodySchema = omitSchemaFields(loginBodySchema, ['shortLived']);

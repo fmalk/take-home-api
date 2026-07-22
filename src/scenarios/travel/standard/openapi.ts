@@ -227,52 +227,46 @@ export const searchFlightsParameters = {
   },
 };
 
-export const loginParameters = {
-  post: {
-    summary: 'Log in',
-    description: 'Exchange a username/password pair for a bearer access token',
-    tags: [],
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            properties: {
-              username: { type: 'string', minLength: 5, description: 'At least 5 characters' },
-              password: { type: 'string', description: "'tr@vel' followed by the first 5 letters of the username" },
-              shortLived: {
-                type: 'boolean',
-                default: false,
-                description: 'Optional. If true, the returned token expires in 100ms instead of the usual TTL',
-              },
-            },
-          },
-        },
-      },
-    },
-    responses: {
-      '200': {
-        description: 'Successful login',
+// Takes the request-body schema as a parameter (defaulting to the full base) so each version's
+// openapi() can pass its own trimmed schema — see travel/v2/openapi.ts's v2LoginBodySchema —
+// without this doc drifting out of sync with what that version's Fastify route actually accepts.
+export function loginParameters(bodySchema: ObjectSchema = loginBodySchema): Record<string, unknown> {
+  return {
+    post: {
+      summary: 'Log in',
+      description: 'Exchange a username/password pair for a bearer access token',
+      tags: [],
+      requestBody: {
+        required: true,
         content: {
           'application/json': {
-            schema: {
-              type: 'object',
-              properties: {
-                access_token: { type: 'string' },
-                token_type: { type: 'string', enum: ['Bearer'] },
-                expires_in: { type: 'number' },
+            schema: bodySchema,
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Successful login',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  access_token: { type: 'string' },
+                  token_type: { type: 'string', enum: ['Bearer'] },
+                  expires_in: { type: 'number' },
+                },
               },
             },
           },
         },
-      },
-      '401': {
-        description: 'Invalid username or password',
+        '401': {
+          description: 'Invalid username or password',
+        },
       },
     },
-  },
-};
+  };
+}
 
 export const userParameters = {
   get: {
@@ -500,13 +494,18 @@ export const baseListCitiesSchema = {
 
 // Auth: OAuth-standard `access_token`/`token_type`/`expires_in` field names for the login
 // response (per RFC 6749 section 5.1), unlike the rest of this API's camelCase JSON.
+// This is the shared base for every version's request body (Fastify validation *and* docs, via
+// loginParameters/buildAuthEndpoints below) — a version composes its own via omitSchemaFields
+// instead of redeclaring username/password. `shortLived` (see core/auth.ts's LoginBody) is kept
+// on the base for future v3/v4 scenarios that need to exercise token-expiry behavior; v1 has no
+// login endpoint at all and v2 explicitly omits it (see travel/v2/openapi.ts's v2LoginBodySchema).
 export const loginBodySchema = {
   type: 'object',
   required: ['username', 'password'],
   properties: {
-    username: { type: 'string', minLength: 5 },
-    password: { type: 'string' },
-    shortLived: { type: 'boolean', default: false },
+    username: { type: 'string', minLength: 5, description: 'At least 5 characters' },
+    password: { type: 'string', description: "'tr@vel' followed by the first 5 letters of the username" },
+    shortLived: { type: 'boolean', default: false, description: 'Internal use: expires the token in 100ms' },
   },
 };
 
@@ -584,10 +583,12 @@ export function buildTravelEndpoints(version: string): Record<string, unknown> {
 }
 
 // Login/user aren't part of every version (see travel/v2/routes.ts for which versions mount
-// them), so they're built separately rather than folded into buildTravelEndpoints.
-export function buildAuthEndpoints(version: string): Record<string, unknown> {
+// them), so they're built separately rather than folded into buildTravelEndpoints. Pass a
+// version-trimmed loginBodySchema (e.g. v2LoginBodySchema) so the doc matches what that
+// version's route actually validates; defaults to the full base for a version with no trims.
+export function buildAuthEndpoints(version: string, loginRequestSchema: ObjectSchema = loginBodySchema): Record<string, unknown> {
   return {
-    [`/api/travel/${version}/login`]: loginParameters,
+    [`/api/travel/${version}/login`]: loginParameters(loginRequestSchema),
     [`/api/travel/${version}/user`]: userParameters,
   };
 }

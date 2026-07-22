@@ -10,7 +10,7 @@ import {
   flightResultCoreProperties,
   roundTripSearchFlightsQuerystring,
 } from '../standard/openapi.js';
-import { v2AirportSchema, v2FlightPricingItemSchema, v2RoutePricingItemSchema } from './openapi.js';
+import { v2AirportSchema, v2FlightPricingItemSchema, v2RoutePricingItemSchema, v2LoginBodySchema } from './openapi.js';
 import {
   searchFlights,
   getFlightDetail,
@@ -92,7 +92,8 @@ const listAirportsSchema = {
   },
 };
 const listCitiesSchema = { ...baseListCitiesSchema };
-const loginSchema = { ...baseLoginSchema };
+// v2 doesn't (yet) expose `shortLived` — see v2LoginBodySchema.
+const loginSchema = { ...baseLoginSchema, body: v2LoginBodySchema };
 const userSchema = { ...baseUserSchema };
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
