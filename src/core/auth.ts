@@ -70,7 +70,7 @@ export function createAuthController(config: AuthConfig): AuthController {
       username,
       fullName: faker.person.fullName(),
       email: faker.internet.email({ firstName: username }),
-      phone: faker.phone.number(),
+      phone: faker.phone.number('international'),
       avatarUrl: faker.image.avatar(),
     };
   }
