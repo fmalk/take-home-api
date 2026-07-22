@@ -7,6 +7,7 @@ import {
   baseListCitiesSchema,
   baseLoginSchema,
   baseUserSchema,
+  basePurchaseSchema,
   flightResultCoreProperties,
   roundTripSearchFlightsQuerystring,
 } from '../standard/openapi.js';
@@ -16,8 +17,10 @@ import {
   getFlightDetail,
   listAirports,
   listCities,
+  createPurchase,
   type SearchFlightsQuery,
   type FlightIdParams,
+  type PurchaseBody,
 } from './controller.js';
 import { createAuthController, type LoginBody } from '../../../core/auth.js';
 import { servePostmanCollection } from '../../../utils/postman-handler.js';
@@ -28,6 +31,8 @@ const { loginBase, getUserBase } = createAuthController({
   namespace: 'travel',
   passwordFor: (username) => `tr@vel${username.slice(0, 5)}`,
 });
+
+const purchase = createPurchase(getUserBase);
 
 // v2 hides the flat `price` simplification. Flights show the `regular`-tier pricing in every
 // currency they offer; Routes show only the cheapest bookable `minimum` fare per currency,
@@ -95,6 +100,24 @@ const listCitiesSchema = { ...baseListCitiesSchema };
 // v2 doesn't (yet) expose `shortLived` — see v2LoginBodySchema.
 const loginSchema = { ...baseLoginSchema, body: v2LoginBodySchema };
 const userSchema = { ...baseUserSchema };
+
+// v2's purchase response carries the same per-currency `pricing` breakdown as its search/detail
+// routes, so it swaps in this file's routeResultSchema for the base's flat-`price` version; the
+// `user` shape is already the full AuthUser surface (basePurchaseSchema's userResponseSchema),
+// so it needs no override here.
+const purchaseSchema = {
+  ...basePurchaseSchema,
+  response: {
+    200: {
+      ...basePurchaseSchema.response[200],
+      properties: {
+        ...basePurchaseSchema.response[200].properties,
+        outbound: routeResultSchema,
+        inbound: routeResultSchema,
+      },
+    },
+  },
+};
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Scoped so @fastify/swagger-ui's decorators (it uses fastify-plugin internally) stay isolated
@@ -168,5 +191,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     scoped.post<{ Body: LoginBody }>('/api/travel/v2/login', { schema: loginSchema }, loginBase);
 
     scoped.get('/api/travel/v2/user', { schema: userSchema }, getUserBase);
+
+    scoped.post<{ Body: PurchaseBody }>('/api/travel/v2/purchase', { schema: purchaseSchema }, purchase);
   });
 }

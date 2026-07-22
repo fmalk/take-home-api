@@ -138,6 +138,64 @@
       "response": []
     },
     {
+      "name": "Purchase (OneWay)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"OneWay\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/travel/v2/purchase",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "travel", "v2", "purchase"]
+        },
+        "description": "outboundRouteId and price come from a prior Search response's outbound route (its `pricing[].minimum` for the chosen currency); route IDs expire ~5 minutes after the search."
+      },
+      "response": []
+    },
+    {
+      "name": "Purchase (RoundTrip)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"RoundTrip\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"inboundId\": \"{{inboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/travel/v2/purchase",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "travel", "v2", "purchase"]
+        },
+        "description": "price must equal (within 0.02) the sum of the outbound and inbound routes' `pricing[].minimum` for the chosen currency."
+      },
+      "response": []
+    },
+    {
       "name": "Search (RoundTrip)",
       "request": {
         "method": "GET",

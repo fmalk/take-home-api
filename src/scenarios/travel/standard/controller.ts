@@ -1,9 +1,10 @@
 import type { FastifyRequest } from 'fastify';
+import { faker } from '@faker-js/faker';
 import { ApiError } from '../../../types.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
 import { findDirectFlights, findConnectingRoutes, applyTimeFlow, groupRoutes, generateId } from './generator.js';
 import { TravelStore } from './store.js';
-import { storeRoutes, getStoredFlight } from './instance-store.js';
+import { storeRoutes, getStoredFlight, getStoredRoute } from './instance-store.js';
 import { logFlow } from '../../../core/logger.js';
 import type { Flight, Route, Airport, City, SearchResults } from './types.js';
 import { formatFlight, formatRoute, type FormattedFlight, type FormattedRoute } from './formatters.js';
@@ -155,6 +156,111 @@ export async function getFlightDetailBase(request: FlightDetailRequest): Promise
   });
 
   return formatFlight(flight);
+}
+
+export interface PurchaseBody {
+  mode: SearchMode;
+  outboundId: string;
+  inboundId?: string;
+  currency: string;
+  price: number;
+}
+
+export type PurchaseRequest = FastifyRequest<{ Body: PurchaseBody }>;
+
+export interface PurchaseBaseResult {
+  bookingCode: string;
+  mode: SearchMode;
+  currency: string;
+  price: number;
+  outbound: FormattedRoute;
+  inbound?: FormattedRoute;
+}
+
+// Consistent with the 2-decimal rounding every price in this scenario is generated with (see
+// generator.ts) — a client-submitted price is allowed to drift by up to this much from the
+// server-derived total before being rejected as a mismatch.
+const PRICE_TOLERANCE = 0.02;
+
+function routeTotalForCurrency(route: Route, currency: string): number {
+  const pricing = route.pricing.find((p) => p.currency === currency);
+  if (!pricing) {
+    throw new ApiError(400, 'CURRENCY_NOT_AVAILABLE', `Route ${route.id} is not available in currency ${currency}`);
+  }
+  // V2 only sells regular seats, so the Route's already-aggregated `minimum` fare (see
+  // aggregateRouteMinimumPricing in generator.ts) is the full price for that leg — no need to
+  // re-derive it from individual seat classes.
+  return pricing.minimum;
+}
+
+export async function purchaseBase(request: PurchaseRequest): Promise<PurchaseBaseResult> {
+  const { outboundId, inboundId, currency, price } = request.body;
+  const modeParam = request.body.mode?.toLowerCase();
+
+  if (modeParam !== 'oneway' && modeParam !== 'roundtrip') {
+    throw new ApiError(400, 'INVALID_MODE', "mode must be 'OneWay' or 'RoundTrip'");
+  }
+  const mode: SearchMode = modeParam === 'roundtrip' ? 'RoundTrip' : 'OneWay';
+
+  if (mode === 'RoundTrip' && !inboundId) {
+    throw new ApiError(400, 'INBOUND_ID_REQUIRED', 'inboundId is required when mode is RoundTrip');
+  }
+
+  logFlow({ reqId: request.id, flow: 'purchase', step: 'lookup', data: { mode, outboundId, inboundId } });
+
+  const outboundRoute = getStoredRoute(outboundId);
+  if (!outboundRoute) {
+    throw new ApiError(404, 'ROUTE_NOT_FOUND', `Outbound route ${outboundId} not found or expired`);
+  }
+
+  let inboundRoute: Route | undefined;
+  if (mode === 'RoundTrip') {
+    inboundRoute = getStoredRoute(inboundId as string);
+    if (!inboundRoute) {
+      throw new ApiError(404, 'ROUTE_NOT_FOUND', `Inbound route ${inboundId} not found or expired`);
+    }
+
+    // A round trip must return between the same two airports the outbound leg connected.
+    if (
+      outboundRoute.departure.airport !== inboundRoute.arrival.airport ||
+      outboundRoute.arrival.airport !== inboundRoute.departure.airport
+    ) {
+      throw new ApiError(
+        400,
+        'ROUTE_MISMATCH',
+        'Inbound route must depart from and arrive at the same airports as the outbound route, reversed',
+      );
+    }
+  }
+
+  const expectedTotal =
+    Math.round(
+      (routeTotalForCurrency(outboundRoute, currency) + (inboundRoute ? routeTotalForCurrency(inboundRoute, currency) : 0)) *
+        100,
+    ) / 100;
+
+  if (Math.abs(expectedTotal - price) > PRICE_TOLERANCE) {
+    throw new ApiError(400, 'PRICE_MISMATCH', `Informed price ${price} does not match the expected total ${expectedTotal}`, {
+      expected: expectedTotal,
+      informed: price,
+    });
+  }
+
+  logFlow({
+    reqId: request.id,
+    flow: 'purchase',
+    step: 'confirmed',
+    data: { mode, outboundId, inboundId, currency, expectedTotal },
+  });
+
+  return {
+    bookingCode: faker.airline.recordLocator(),
+    mode,
+    currency,
+    price,
+    outbound: formatRoute(outboundRoute),
+    inbound: inboundRoute ? formatRoute(inboundRoute) : undefined,
+  };
 }
 
 export async function listAirportsBase(request: FastifyRequest): Promise<Airport[]> {

@@ -1,19 +1,23 @@
 import type { FastifyRequest } from 'fastify';
+import type { AuthUser, UserRequest } from '../../../core/auth.js';
 import {
   searchFlightsBase,
   getFlightDetailBase,
   listAirportsBase,
   listCitiesBase,
+  purchaseBase,
   type SearchFlightsQuery,
   type FlightIdParams,
   type SearchFlightsRequest,
   type FlightDetailRequest,
+  type PurchaseBody,
+  type PurchaseRequest,
 } from '../standard/controller.js';
 import type { FormattedFlight, FormattedRoute } from '../standard/formatters.js';
 import type { Airport, City } from '../standard/types.js';
 import type { V2Airport, V2Flight, V2Route } from './types.js';
 
-export type { SearchFlightsQuery, FlightIdParams, SearchFlightsRequest, FlightDetailRequest };
+export type { SearchFlightsQuery, FlightIdParams, SearchFlightsRequest, FlightDetailRequest, PurchaseBody, PurchaseRequest };
 
 // v2 airports drop only the internal category flags; icao/utcOffset/lat/long stay (full spec).
 function toV2Airport({
@@ -64,6 +68,33 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
 export async function getFlightDetail(request: FlightDetailRequest): Promise<V2Flight> {
   const flight = await getFlightDetailBase(request);
   return toV2Flight(flight);
+}
+
+export interface PurchaseResult {
+  bookingCode: string;
+  mode: 'OneWay' | 'RoundTrip';
+  currency: string;
+  price: number;
+  outbound: V2Route;
+  inbound?: V2Route;
+  user: AuthUser;
+}
+
+// Auth is bound to a single createAuthController instance (see v2/routes.ts), so purchase takes
+// its getUserBase as a dependency rather than re-instantiating the controller here.
+export function createPurchase(
+  getUserBase: (request: UserRequest) => Promise<AuthUser>,
+): (request: PurchaseRequest) => Promise<PurchaseResult> {
+  return async function purchase(request: PurchaseRequest): Promise<PurchaseResult> {
+    const user = await getUserBase(request);
+    const { outbound, inbound, ...rest } = await purchaseBase(request);
+    return {
+      ...rest,
+      outbound: toV2Route(outbound),
+      inbound: inbound ? toV2Route(inbound) : undefined,
+      user,
+    };
+  };
 }
 
 export async function listAirports(request: FastifyRequest): Promise<{ airports: V2Airport[] }> {

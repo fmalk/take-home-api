@@ -114,7 +114,7 @@ export function createAuthController(config: AuthConfig): AuthController {
       id: faker.string.uuid(),
       username,
       fullName: guessFullName(username),
-      email: faker.internet.email({ firstName: username }),
+      email: faker.internet.email({ firstName: username }).toLowerCase(),
       phone: faker.phone.number({ style: 'international' }),
       avatarUrl: faker.image.avatar(),
     };

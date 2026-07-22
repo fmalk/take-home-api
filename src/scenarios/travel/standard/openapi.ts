@@ -545,6 +545,80 @@ export const baseUserSchema = {
   },
 };
 
+// Purchase confirms the routes chosen from a prior search. Each version supplies its own
+// outbound/inbound Route shape (flat `price` vs per-class `pricing`, see travel/v2/routes.ts)
+// and `user` shape when composing basePurchaseSchema, same pattern as baseSearchFlightsSchema.
+export const purchaseBodySchema = {
+  type: 'object',
+  required: ['mode', 'outboundId', 'currency', 'price'],
+  properties: {
+    mode: { type: 'string', enum: ['OneWay', 'RoundTrip'], description: 'OneWay or RoundTrip (case-insensitive)' },
+    outboundId: { type: 'string', description: 'Route ID for the selected outbound flight, from a prior search' },
+    inboundId: { type: 'string', description: 'Route ID for the selected inbound flight (required when mode is RoundTrip)' },
+    currency: { type: 'string', description: 'Currency code (three letters) for the agreed price' },
+    price: { type: 'number', description: 'Agreed total price for the selected outbound (+ inbound) routes' },
+  },
+};
+
+export const purchaseResponseCoreProperties = {
+  bookingCode: { type: 'string', description: 'Generated booking confirmation code' },
+  mode: { type: 'string', enum: ['OneWay', 'RoundTrip'] },
+  currency: { type: 'string' },
+  price: { type: 'number' },
+};
+
+export const basePurchaseSchema = {
+  body: purchaseBodySchema,
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        ...purchaseResponseCoreProperties,
+        outbound: routeResultSchema,
+        inbound: routeResultSchema,
+        user: userResponseSchema,
+      },
+    },
+  },
+};
+
+export const purchaseParameters = {
+  post: {
+    summary: 'Purchase selected flights',
+    description: 'Confirm and purchase the previously searched outbound (and inbound, for RoundTrip) routes',
+    tags: [],
+    security: [{ bearerAuth: [] }],
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: purchaseBodySchema,
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Successful purchase',
+      },
+      '400': {
+        description: 'Invalid mode, mismatched round-trip routes, unavailable currency, or price mismatch',
+      },
+      '401': {
+        description: 'Missing or invalid bearer token',
+      },
+      '404': {
+        description: 'Outbound or inbound route not found or expired',
+      },
+    },
+  },
+};
+
+// Purchase isn't part of every version (v1 has no auth at all), so it's built separately from
+// buildTravelEndpoints, same reasoning as buildAuthEndpoints.
+export function buildPurchaseEndpoints(version: string): Record<string, unknown> {
+  return { [`/api/travel/${version}/purchase`]: purchaseParameters };
+}
+
 export const travelSchemas = {
   City: citySchema,
   Airport: airportSchema,
