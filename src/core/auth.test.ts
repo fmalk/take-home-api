@@ -41,6 +41,30 @@ describe('auth', () => {
         { status: 401 },
       );
     });
+
+    it('defaults shortLived to false and issues a token with the standard ttl', async () => {
+      const result = await loginBase(makeLoginRequest({ username: 'jsmith', password: 'tr@veljsmit' }));
+
+      expect(result.expires_in).toBe(3600);
+    });
+
+    it('issues a token expiring in 100ms when shortLived is true', async () => {
+      const result = await loginBase(
+        makeLoginRequest({ username: 'jsmith', password: 'tr@veljsmit', shortLived: true }),
+      );
+
+      expect(result.expires_in).toBe(0.1);
+
+      const user = await getUserBase(makeUserRequest(`Bearer ${result.access_token}`));
+      expect(user.username).toBe('jsmith');
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      await expect(getUserBase(makeUserRequest(`Bearer ${result.access_token}`))).rejects.toMatchObject({
+        status: 401,
+        code: 'UNAUTHORIZED',
+      });
+    });
   });
 
   describe('getUserBase', () => {

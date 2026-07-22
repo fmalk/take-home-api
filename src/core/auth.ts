@@ -10,6 +10,10 @@ import { logFlow } from './logger.js';
 // plumbing per scenario. Per-scenario behavior (password rule, cache isolation) is supplied
 // via AuthConfig; see travel/v2/routes.ts for the first caller.
 const DEFAULT_TOKEN_TTL_SECONDS = 3600;
+// Useful later for exercising expiry handling on the caller's side without waiting out a full
+// token TTL: a shortLived login still validates the same as any other, it just expires almost
+// immediately.
+const SHORT_LIVED_TTL_SECONDS = 0.1;
 
 export interface AuthConfig {
   // Isolates this scenario's cached tokens/logs from every other scenario reusing this module.
@@ -31,6 +35,8 @@ export interface AuthUser {
 export interface LoginBody {
   username: string;
   password: string;
+  // When true, issue a token that expires in 100ms instead of the configured tokenTtlSeconds.
+  shortLived?: boolean;
 }
 
 // OAuth-standard field names (RFC 6749 section 5.1), unlike the rest of this API's camelCase JSON.
@@ -129,22 +135,23 @@ export function createAuthController(config: AuthConfig): AuthController {
   }
 
   async function loginBase(request: LoginRequest): Promise<LoginResult> {
-    const { username, password } = request.body;
+    const { username, password, shortLived = false } = request.body;
 
     if (password !== passwordFor(username)) {
       logFlow({ reqId: request.id, flow: 'auth-login', step: 'rejected', data: { namespace, username } });
       throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid username or password');
     }
 
-    const accessToken = signJwt({ sub: username }, tokenTtlSeconds);
+    const ttlSeconds = shortLived ? SHORT_LIVED_TTL_SECONDS : tokenTtlSeconds;
+    const accessToken = signJwt({ sub: username }, ttlSeconds);
     // Recorded for parity with a real session store (and so an admin surface could list/revoke
     // active tokens later), but this is *not* what makes the token valid — see getUserBase.
-    setCached(cacheKey(namespace, 'auth', 'token', accessToken), username, tokenTtlSeconds);
+    setCached(cacheKey(namespace, 'auth', 'token', accessToken), username, ttlSeconds);
     getOrCreateUser(username);
 
-    logFlow({ reqId: request.id, flow: 'auth-login', step: 'issued', data: { namespace, username } });
+    logFlow({ reqId: request.id, flow: 'auth-login', step: 'issued', data: { namespace, username, shortLived } });
 
-    return { access_token: accessToken, token_type: 'Bearer', expires_in: tokenTtlSeconds };
+    return { access_token: accessToken, token_type: 'Bearer', expires_in: ttlSeconds };
   }
 
   async function getUserBase(request: UserRequest): Promise<AuthUser> {

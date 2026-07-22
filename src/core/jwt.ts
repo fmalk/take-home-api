@@ -22,8 +22,13 @@ export interface JwtPayload {
 }
 
 export function signJwt(claims: Record<string, unknown>, ttlSeconds: number): string {
-  const now = Math.floor(Date.now() / 1000);
-  const payload = base64url(JSON.stringify({ ...claims, iat: now, exp: now + ttlSeconds }));
+  const nowMs = Date.now();
+  // exp is kept in fractional seconds (not rounded to the nearest whole second like a strict
+  // NumericDate) so sub-second ttlSeconds — e.g. a 100ms short-lived token — actually expire
+  // when they're supposed to, instead of always rounding up to at least a full second.
+  const payload = base64url(
+    JSON.stringify({ ...claims, iat: Math.floor(nowMs / 1000), exp: nowMs / 1000 + ttlSeconds }),
+  );
   const signingInput = `${HEADER}.${payload}`;
   return `${signingInput}.${sign(signingInput)}`;
 }
@@ -47,7 +52,8 @@ export function verifyJwt(token: string): JwtPayload | null {
     return null;
   }
 
-  if (typeof claims.exp !== 'number' || claims.exp < Math.floor(Date.now() / 1000)) {
+  // Compared at full (millisecond) precision to match signJwt's fractional-second exp.
+  if (typeof claims.exp !== 'number' || claims.exp * 1000 < Date.now()) {
     return null;
   }
 

@@ -241,6 +241,11 @@ export const loginParameters = {
             properties: {
               username: { type: 'string', minLength: 5, description: 'At least 5 characters' },
               password: { type: 'string', description: "'tr@vel' followed by the first 5 letters of the username" },
+              shortLived: {
+                type: 'boolean',
+                default: false,
+                description: 'Optional. If true, the returned token expires in 100ms instead of the usual TTL',
+              },
             },
           },
         },
@@ -501,6 +506,7 @@ export const loginBodySchema = {
   properties: {
     username: { type: 'string', minLength: 5 },
     password: { type: 'string' },
+    shortLived: { type: 'boolean', default: false },
   },
 };
 

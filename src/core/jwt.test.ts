@@ -46,6 +46,16 @@ describe('jwt', () => {
       expect(verifyJwt(token)).toBeNull();
     });
 
+    it('supports sub-second ttl (e.g. a 100ms short-lived token)', async () => {
+      const token = signJwt({ sub: 'jsmith' }, 0.1);
+
+      expect(verifyJwt(token)?.sub).toBe('jsmith');
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      expect(verifyJwt(token)).toBeNull();
+    });
+
     it('rejects a malformed token', () => {
       expect(verifyJwt('not-a-jwt')).toBeNull();
     });
