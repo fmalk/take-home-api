@@ -1,6 +1,6 @@
 {
   "name": "take-home-api",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "A ready-made, well-designed REST API mimicking many real world scenarios. Every scenario has API versions of increased difficulty.",
   "main": "dist/index.js",
   "type": "module",
