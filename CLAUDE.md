@@ -63,7 +63,7 @@ This is a JavaScript/TypeScript project optimized for modern web development. Th
 
 ### Seeding
 
-- **Static reference data** (real-ish cities, airport/airline codes, plane types, currencies, etc.) is committed as source data (e.g. CSV under a scenario's folder) and loaded into the scenario's DB by a build script (e.g. `npm run db:build:travel`) — this is enumerable, factual vocabulary, not fabricated
+- **Static reference data** (real-ish cities, airport/airline codes, plane types, currencies, etc.) is committed as source data (e.g. **CSV under a scenario's folder) and loaded into the scenario's DB by a build script (e.g. npm run db:build:travel) — this is enumerable, factual vocabulary, not fabricated**
 - **Runtime access is DB-only**: once loaded at build time, reference data is never read from source files during execution. All runtime queries go through the in-memory DB (sql.js), not direct CSV/file reads. This keeps the runtime hermetic and the Docker image portable.
 - **Transactional/instance data** (a specific flight, booking, price, timestamp) is never pre-seeded — it's **generated on-the-fly per request**, with tools like Faker
 - Reference data (airports, airlines, aircraft, currency rates) is seeded at build time and lives in the DB thereafter. The "no seed data" constraint refers strictly to transactional/instance data — the DB is never empty, only pre-populated with canonical reference vocabulary.

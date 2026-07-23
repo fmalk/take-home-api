@@ -54,22 +54,21 @@ Every scenario ships with an OpenAPI/Swagger spec and a set of static reference 
 
 ## Getting started
 
-You can run the API via docker image locally:
+You can run the API via public docker image:
 
 ```bash
-docker build -t th-api .
-docker run -d --name take-home-api -p 3000:3000 th-api
+docker pull fernandopj/take-home-api
+docker run -d --name take-home-api -p 3000:3000 fernandopj/take-home-api
 ```
 
-*(image name and instructions to be added once published to Docker Hub).*
-
-You can also consume it free at:
+Or you can build locally:
 
 ```bash
-https://app.takehome.codes/api
+git clone https://github.com/fmalk/take-home-api.git
+cd take-home-api
+docker build -t take-home-api .
+docker run -d --name take-home-api -p 3000:3000 take-home-api
 ```
-
-*(Open server to be determined later. Throttling limits apply).*
 
 ## Disclaimer
 
@@ -77,7 +76,7 @@ https://app.takehome.codes/api
 - **All generated data is mocked**, there's no correlation to any real case, be it past, present or future.
   - Generated data is all computed on the fly, meant for **educational and training purposes only**.
 - Any real world data used, such as names and cities, may be used by this project if it is vastly understood public information, and such use is meant to help comprehension about the domain, in a **fair use** context.
-  - Even if public information, they may be copyrighted work and trademarks, which this project is meant to respect.
+  - Even if public information, they may be copyrighted work and trademarks, which this project means to respect.
 - Real companies logos, liveries, designs, particular UI such as websites or screens, are all avoided by this project.
 - Emoticons, emojis, icons, typography, if used by this project must be generally available under a well understood public fair use.
 

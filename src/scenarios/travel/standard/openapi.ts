@@ -554,7 +554,10 @@ export const purchaseBodySchema = {
   properties: {
     mode: { type: 'string', enum: ['OneWay', 'RoundTrip'], description: 'OneWay or RoundTrip (case-insensitive)' },
     outboundId: { type: 'string', description: 'Route ID for the selected outbound flight, from a prior search' },
-    inboundId: { type: 'string', description: 'Route ID for the selected inbound flight (required when mode is RoundTrip)' },
+    inboundId: {
+      type: 'string',
+      description: 'Route ID for the selected inbound flight (required when mode is RoundTrip)',
+    },
     currency: { type: 'string', description: 'Currency code (three letters) for the agreed price' },
     price: { type: 'number', description: 'Agreed total price for the selected outbound (+ inbound) routes' },
   },
@@ -660,7 +663,10 @@ export function buildTravelEndpoints(version: string): Record<string, unknown> {
 // them), so they're built separately rather than folded into buildTravelEndpoints. Pass a
 // version-trimmed loginBodySchema (e.g. v2LoginBodySchema) so the doc matches what that
 // version's route actually validates; defaults to the full base for a version with no trims.
-export function buildAuthEndpoints(version: string, loginRequestSchema: ObjectSchema = loginBodySchema): Record<string, unknown> {
+export function buildAuthEndpoints(
+  version: string,
+  loginRequestSchema: ObjectSchema = loginBodySchema,
+): Record<string, unknown> {
   return {
     [`/api/travel/${version}/login`]: loginParameters(loginRequestSchema),
     [`/api/travel/${version}/user`]: userParameters,

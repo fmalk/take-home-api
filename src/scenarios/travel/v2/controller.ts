@@ -17,7 +17,14 @@ import type { FormattedFlight, FormattedRoute } from '../standard/formatters.js'
 import type { Airport, City } from '../standard/types.js';
 import type { V2Airport, V2Flight, V2Route } from './types.js';
 
-export type { SearchFlightsQuery, FlightIdParams, SearchFlightsRequest, FlightDetailRequest, PurchaseBody, PurchaseRequest };
+export type {
+  SearchFlightsQuery,
+  FlightIdParams,
+  SearchFlightsRequest,
+  FlightDetailRequest,
+  PurchaseBody,
+  PurchaseRequest,
+};
 
 // v2 airports drop only the internal category flags; icao/utcOffset/lat/long stay (full spec).
 function toV2Airport({

@@ -235,15 +235,21 @@ export async function purchaseBase(request: PurchaseRequest): Promise<PurchaseBa
 
   const expectedTotal =
     Math.round(
-      (routeTotalForCurrency(outboundRoute, currency) + (inboundRoute ? routeTotalForCurrency(inboundRoute, currency) : 0)) *
+      (routeTotalForCurrency(outboundRoute, currency) +
+        (inboundRoute ? routeTotalForCurrency(inboundRoute, currency) : 0)) *
         100,
     ) / 100;
 
   if (Math.abs(expectedTotal - price) > PRICE_TOLERANCE) {
-    throw new ApiError(400, 'PRICE_MISMATCH', `Informed price ${price} does not match the expected total ${expectedTotal}`, {
-      expected: expectedTotal,
-      informed: price,
-    });
+    throw new ApiError(
+      400,
+      'PRICE_MISMATCH',
+      `Informed price ${price} does not match the expected total ${expectedTotal}`,
+      {
+        expected: expectedTotal,
+        informed: price,
+      },
+    );
   }
 
   logFlow({
