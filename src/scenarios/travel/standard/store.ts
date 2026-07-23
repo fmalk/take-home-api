@@ -147,6 +147,26 @@ export class TravelStore {
     return airlines;
   }
 
+  // Unfiltered by is_real, unlike getAirlines() — needed to classify an airline already
+  // referenced on a generated Flight (by iata), since getConnectingAirlines/getRegionalAirlines
+  // (the source of every Flight's airline) never filter by is_real either, so a Flight can carry
+  // either flavor of airline regardless of the USE_REAL_AIRLINES toggle.
+  async getAllAirlines(): Promise<Airline[]> {
+    const db = await this.ensureDatabase();
+
+    const stmt = db.prepare(
+      'SELECT iata, icao, name, country, country_code, low_cost, first_class, business_class, loyalty FROM airlines',
+    );
+    const airlines: Airline[] = [];
+
+    while (stmt.step()) {
+      airlines.push(rowToAirline(stmt.getAsObject()));
+    }
+    stmt.free();
+
+    return airlines;
+  }
+
   // A regional airline is one whose airport_airlines edge is flagged `regional` for that
   // airport. If the same airline holds a regional edge at both ends, it can fly the pair direct.
   async getRegionalAirlines(from: string, to: string): Promise<Airline[]> {

@@ -131,6 +131,7 @@ Each Flight is assigned an aircraft from the `aircraft` reference table (see TRA
 
 ## Seat Offering
 
+Each Flight is assigned an `available` seat count and a set of cabin classes it sells, both derived at generation time (`makeFlight()`):
 
 - `available` is a random integer in `[10, aircraft.capacity]` — bounded above by the chosen aircraft's capacity, but not fixed to it, so identical aircraft don't always report a full plane.
 - Cabin classes come from `pickSeatClasses(airline)`: `regular` is always offered; if the airline has `hasEconomyClass`, `economy` is added; `businessClass` and `firstClass` are added individually per the airline's corresponding flags. `SeatClass` is `'regular' | 'economy' | 'businessClass' | 'firstClass'`.
@@ -149,12 +150,23 @@ Each Flight is assigned a per-class, per-currency price table, derived from dist
 
 ## Normalization
 
-Route-level aggregation (the numbers described in "Route Normalization" above — `flightTimeHours`, `flightDistanceKms`, `departure`/`arrival`, `available`, `price`, `pricing`) already happens inline during route grouping (`groupRoutes()` / `aggregateRouteMinimumPricing()`), not as a distinct later pass. What remains genuinely undone, flagged by comments in `generator.ts` at the point each shortcut is taken:
+Route-level aggregation (the numbers described in "Route Normalization" above — `flightTimeHours`, `flightDistanceKms`, `departure`/`arrival`, `available`, `price`, `pricing`) already happens inline during route grouping (`groupRoutes()` / `aggregateRouteMinimumPricing()`), not as a distinct later pass. Two more Normalization steps run on the `Flight[][]` sequence collection after Time Flow, before it's grouped into `Route[]` (`applyNormalization()` in `generator.ts`):
 
-- **Route collection trimming**: `MAX_ROUTES` (1000) is only a hard safety cap on generation, not a realistic result-set size — there's no ranking/truncation down to what a real search UI would show.
-- **Airline distribution weighting**: routes aren't weighted or deduplicated by airline mix; every airline combination found in Path Flow survives as-is.
+### Airline Distribution Weighting
+
+Not every airline combination Path Flow finds is worth presenting — full diversity produces near-duplicate routes that only differ in which of a dozen carriers flew one leg. `applyAirlineWeighting()` caps how many distinct airlines of each class a connecting-route collection may show, and is skipped entirely for direct-regional route sets (`findDirectFlights` output) — that airline pool is already small enough that trimming would just remove options for no benefit.
+
+- **Airline class**: each airline collapses to one bucket, from its flags (see `pickSeatClasses` — only four combos exist): `firstClass` (`hasFirstClass`), `businessClass` (`hasBusinessClass` without first), `regular` (neither premium flag). `economy` carriers (`hasEconomyClass`) are exempt/uncapped — there are plenty, capping them serves no purpose.
+- **Caps**: `firstClass` ≤ 3 distinct airlines, `businessClass` ≤ 3 (a separate budget from firstClass), `regular` ≤ 4. Tightest cap on `firstClass`, loosest on `regular` — premium cabins should read as curated, regular/economy as abundant.
+- **Scope**: only legs on a non-regional edge (both endpoints non-regional airports — hub-to-hub legs, standard→hub connectors) count toward an airline's tally and toward the cap. A regional connector leg (either endpoint `isRegional`) never contributes to the tally — its airline pool is already tiny (`reduceToHub`'s regional branch already picks a single airline per connector, not a combination).
+- **Selecting cuts**: for each class over its cap, drop the lowest-represented airlines (fewest distinct routes touching them) until at cap; ties broken at random — no need for query-level determinism here, unlike the rest of generation.
+- **Reprieve**: per specific non-regional edge (one from→to pair), if every airline that ever served it would be cut, un-cut one of them back in — but only for that edge. The same airline stays cut everywhere else it appears. Losing an edge outright (and every route through it) is worse than a class slightly exceeding its cap on one leg.
+- **Route removal**: a Route (`Flight[]` sequence) is dropped if any of its legs — regional or not — uses an airline still in the cut set for that leg. Regional legs can still disqualify a route this way even though they're excluded from tallying/capping/reprieve.
+
+### Route Collection Trimming
+
+`MAX_ROUTES` (1000, in Path Flow) is only a hard safety cap on generation, not a realistic result-set size. After Airline Distribution Weighting, `applyNormalization()` samples the (already-weighted) collection down to `MAX_PRESENTED_ROUTES` (50) per direction if it's still over that size — picked uniformly at random rather than by any ranking, so the surviving departures keep an uneven scatter across Time Flow's window as a side effect, instead of the artificial clustering a "keep the first/earliest N" trim would produce. A collection already at or under 50 after weighting is left untouched.
+
+### Still undone
+
 - **Per-class seat pool splitting**: as noted in Seat Offering, every cabin class on a Flight currently shares the same `available` count instead of each class holding a realistic fraction of it.
-
-There is no dedicated `normalize()` function or file — this is the one stage in the pipeline with no implementation to point to yet.
-
-Each Flight is assigned an `available` seat count and a set of cabin classes it sells, both derived at generation time (`makeFlight()`):

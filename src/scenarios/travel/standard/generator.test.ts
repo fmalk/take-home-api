@@ -1,4 +1,11 @@
-import { findDirectFlights, findConnectingRoutes, applyTimeFlow, groupRoutes } from './generator.js';
+import {
+  findDirectFlights,
+  findConnectingRoutes,
+  applyTimeFlow,
+  applyAirlineWeighting,
+  applyNormalization,
+  groupRoutes,
+} from './generator.js';
 import type { Flight, Route } from './types.js';
 
 // Parses generator.ts's "YYYY-MM-DD HH:MM UTC+/-N" timestamp format (see formatLocalTimestamp)
@@ -268,5 +275,110 @@ describe('applyTimeFlow ordering', () => {
     // The shared instance must be timestamped exactly once, not re-derived per sequence.
     expect(timedA[0]).toBe(timedB[0]);
     expect(timedA[0].departure.timestamp).toBe(timedB[0].departure.timestamp);
+  });
+});
+
+function leg(from: string, to: string, airline: string): Flight {
+  return makeRawLeg(from, to, { travelInfo: { airline, aircraft: 'Test Plane', flightNumber: `${airline} 0001` } });
+}
+
+function usesAirline(sequences: Flight[][], airline: string): boolean {
+  return sequences.some((seq) => seq.some((f) => f.travelInfo.airline === airline));
+}
+
+// Array(n).fill([...]) would alias the same inner array across every slot — each route needs
+// its own distinct sequence.
+function repeat(n: number, from: string, to: string, airline: string): Flight[][] {
+  return Array.from({ length: n }, () => [leg(from, to, airline)]);
+}
+
+// CDG/LOS/LIS/NBO are real non-regional hubs in travel.sqlite; HIR is a real regional airport.
+// DH/FD/KU/UT (firstClass), EI/RC/AL/BL (businessClass), NA/SN/KI/ZZ/6I/DI (regular) are real
+// fictional-roster airlines with those exact class flags (see FLIGHT_GENERATOR.md Airline
+// Distribution Weighting) — chosen so cut/survive is unambiguous (no count ties at the cap
+// boundary), so this exercises real store lookups without depending on Path Flow's combinatorics.
+describe('applyAirlineWeighting', () => {
+  it('caps distinct airlines per class, drops the least-represented, and reprieves an edge left with none', async () => {
+    const sequences: Flight[][] = [
+      // firstClass: DH(4) > FD(3) > KU(2) > UT(1) — cap 3, UT is cut.
+      ...repeat(4, 'CDG', 'LOS', 'DH'),
+      ...repeat(3, 'CDG', 'LOS', 'FD'),
+      ...repeat(2, 'CDG', 'LOS', 'KU'),
+      [leg('CDG', 'LOS', 'UT')],
+      // businessClass: EI(4) > RC(3) > AL(2) > BL(1) — cap 3, BL is cut.
+      ...repeat(4, 'CDG', 'LOS', 'EI'),
+      ...repeat(3, 'CDG', 'LOS', 'RC'),
+      ...repeat(2, 'CDG', 'LOS', 'AL'),
+      [leg('CDG', 'LOS', 'BL')],
+      // regular: NA(5) > SN(4) > KI(3) > ZZ(2) > 6I(1) = DI(1) — cap 4, the two lowest (6I, DI)
+      // are cut. DI is the *only* airline on LIS->NBO, so it must be reprieved back in there.
+      ...repeat(5, 'CDG', 'LOS', 'NA'),
+      ...repeat(4, 'CDG', 'LOS', 'SN'),
+      ...repeat(3, 'CDG', 'LOS', 'KI'),
+      ...repeat(2, 'CDG', 'LOS', 'ZZ'),
+      [leg('CDG', 'LOS', '6I')],
+      [leg('LIS', 'NBO', 'DI')],
+      // A route with a cut airline (UT) only on its regional leg (HIR->INU) — regional legs
+      // are excluded from tallying/capping, but still enforced on removal ("every leg").
+      [leg('CDG', 'LOS', 'DH'), leg('HIR', 'INU', 'UT')],
+      // Control: same shape, but the regional leg uses a surviving airline — must not be cut.
+      [leg('CDG', 'LOS', 'DH'), leg('HIR', 'INU', 'DH')],
+    ];
+
+    const result = await applyAirlineWeighting(sequences);
+
+    // Cut and not reprieved anywhere: gone entirely.
+    expect(usesAirline(result, 'UT')).toBe(false);
+    expect(usesAirline(result, 'BL')).toBe(false);
+    expect(usesAirline(result, '6I')).toBe(false);
+
+    // Cut, but reprieved on its only edge.
+    expect(usesAirline(result, 'DI')).toBe(true);
+
+    // Under-cap survivors untouched.
+    for (const survivor of ['DH', 'FD', 'KU', 'EI', 'RC', 'AL', 'NA', 'SN', 'KI', 'ZZ']) {
+      expect(usesAirline(result, survivor)).toBe(true);
+    }
+
+    // A cut airline on a regional leg still disqualifies the whole route ("every leg" rule).
+    expect(result.some((seq) => seq.length === 2 && seq[1].travelInfo.airline === 'UT')).toBe(false);
+    // The equivalent route with a surviving airline on that same regional leg is kept.
+    expect(result.some((seq) => seq.length === 2 && seq[1].travelInfo.airline === 'DH')).toBe(true);
+  });
+
+  it('leaves the collection untouched when no class exceeds its cap', async () => {
+    const sequences: Flight[][] = [[leg('CDG', 'LOS', 'DH')], [leg('CDG', 'LOS', 'FD')]];
+
+    const result = await applyAirlineWeighting(sequences);
+
+    expect(result).toEqual(sequences);
+  });
+});
+
+describe('applyNormalization', () => {
+  it('skips airline weighting entirely for direct-regional route sets', async () => {
+    // 4 distinct firstClass airlines on one edge — would be cut down to 3 by applyAirlineWeighting.
+    const sequences: Flight[][] = [
+      [leg('CDG', 'LOS', 'DH')],
+      [leg('CDG', 'LOS', 'FD')],
+      [leg('CDG', 'LOS', 'KU')],
+      [leg('CDG', 'LOS', 'UT')],
+    ];
+
+    const result = await applyNormalization(sequences, true);
+
+    expect(result).toHaveLength(4);
+    expect(usesAirline(result, 'UT')).toBe(true);
+  });
+
+  it('samples down to MAX_PRESENTED_ROUTES (50) when the (already-weighted) collection is larger', async () => {
+    const sequences: Flight[][] = Array.from({ length: 60 }, () => [leg('CDG', 'LOS', 'NA')]);
+
+    const result = await applyNormalization(sequences, false);
+
+    expect(result).toHaveLength(50);
+    for (const seq of result) {
+      expect(sequences).toContain(seq);
+    }
   });
 });

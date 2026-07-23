@@ -498,6 +498,18 @@ function departureWindow(date: string, utcOffset: number, now: number): { start:
   return { start: Math.max(fiveAm, sixHoursFromNow), end: nextMidnight };
 }
 
+// Shared by applyTimeFlow and applyAirlineWeighting — both need repeated Airport lookups
+// (by IATA) for the same handful of airports across many legs.
+function makeAirportLookup(): (iata: string) => Promise<Airport | undefined> {
+  const cache = new Map<string, Airport | undefined>();
+  return async (iata: string): Promise<Airport | undefined> => {
+    if (!cache.has(iata)) {
+      cache.set(iata, await store.getAirport(iata));
+    }
+    return cache.get(iata);
+  };
+}
+
 function formatLocalTimestamp(utcMillis: number, utcOffset: number): string {
   const local = new Date(utcMillis + utcOffset * 3600_000);
   const offsetSign = utcOffset >= 0 ? '+' : '-';
@@ -527,13 +539,7 @@ function formatLocalTimestamp(utcMillis: number, utcOffset: number): string {
 // therefore distributed across the distinct *first* Flight instances, not one slot per Route.
 export async function applyTimeFlow(sequences: Flight[][], date: string): Promise<Flight[][]> {
   const now = Date.now();
-  const airportCache = new Map<string, Airport | undefined>();
-  const getAirport = async (iata: string): Promise<Airport | undefined> => {
-    if (!airportCache.has(iata)) {
-      airportCache.set(iata, await store.getAirport(iata));
-    }
-    return airportCache.get(iata);
-  };
+  const getAirport = makeAirportLookup();
 
   const timestamped = new Map<Flight, { departureInstant: number; arrivalInstant: number }>();
 
@@ -594,6 +600,144 @@ export async function applyTimeFlow(sequences: Flight[][], date: string): Promis
   }
 
   return sequences;
+}
+
+// FLIGHT_GENERATOR.md Normalization: Airline Distribution Weighting. Each airline collapses
+// to one bucket from its flags (see pickSeatClasses — only four combos exist); economy
+// carriers are exempt/uncapped, there are plenty of those.
+type AirlineWeightClass = 'firstClass' | 'businessClass' | 'regular';
+
+// Tightest cap on firstClass, loosest on regular — premium cabins should read as curated,
+// regular/economy as abundant.
+const AIRLINE_CLASS_CAPS: Record<AirlineWeightClass, number> = {
+  firstClass: 3,
+  businessClass: 3,
+  regular: 4,
+};
+
+function airlineWeightClass(airline: Airline): AirlineWeightClass | undefined {
+  if (airline.hasEconomyClass) return undefined;
+  if (airline.hasFirstClass) return 'firstClass';
+  if (airline.hasBusinessClass) return 'businessClass';
+  return 'regular';
+}
+
+// A leg counts as a "regional edge" if either endpoint is a regional-category airport —
+// reduceToHub only ever routes through a regional airport via its dedicated regional-connector
+// branch (regionalFrom/regionalTo edges), so this is equivalent to "this leg came from that
+// branch" without needing to tag Flight instances at creation time.
+async function isRegionalLeg(
+  leg: Flight,
+  getAirport: (iata: string) => Promise<Airport | undefined>,
+): Promise<boolean> {
+  const [from, to] = await Promise.all([getAirport(leg.departure.airport), getAirport(leg.arrival.airport)]);
+  return Boolean(from?.isRegional || to?.isRegional);
+}
+
+function edgeKey(leg: Flight): string {
+  return `${leg.departure.airport}|${leg.arrival.airport}`;
+}
+
+// Caps how many distinct airlines of each class a connecting-route collection may show. Only
+// non-regional-edge legs (hub-to-hub, standard→hub connectors) count toward an airline's tally
+// and its cap — a regional connector's airline pool is already tiny (reduceToHub picks a single
+// airline per connector, not a combination), so it's never a source of over-representation.
+//
+// When a class is over cap, the lowest-represented airlines (fewest distinct routes touching
+// them) are cut, with a random tie-break — determinism isn't needed here, unlike the rest of
+// generation. A cut is then reprieved back in for one specific edge if enforcing it would leave
+// that edge with zero surviving airlines (losing an edge outright, and every route through it,
+// is worse than a class slightly exceeding its cap on one leg) — the reprieve is scoped to that
+// edge only, the airline stays cut everywhere else it appears.
+//
+// Finally, any Route (Flight[] sequence) with a leg — regional or not — still using a cut
+// airline for that leg is dropped. Regional legs can still disqualify a route this way even
+// though they're excluded from tallying/capping/reprieve.
+export async function applyAirlineWeighting(sequences: Flight[][]): Promise<Flight[][]> {
+  if (sequences.length === 0) return sequences;
+
+  const getAirport = makeAirportLookup();
+  const airlineByIata = new Map((await store.getAllAirlines()).map((a) => [a.iata, a]));
+
+  const routeCountByAirline = new Map<string, number>();
+  for (const sequence of sequences) {
+    const airlinesInSequence = new Set<string>();
+    for (const leg of sequence) {
+      if (await isRegionalLeg(leg, getAirport)) continue;
+      airlinesInSequence.add(leg.travelInfo.airline);
+    }
+    for (const iata of airlinesInSequence) {
+      routeCountByAirline.set(iata, (routeCountByAirline.get(iata) ?? 0) + 1);
+    }
+  }
+
+  const byClass: Record<AirlineWeightClass, string[]> = { firstClass: [], businessClass: [], regular: [] };
+  for (const iata of routeCountByAirline.keys()) {
+    const airline = airlineByIata.get(iata);
+    const cls = airline && airlineWeightClass(airline);
+    if (cls) byClass[cls].push(iata);
+  }
+
+  const cut = new Set<string>();
+  for (const cls of Object.keys(byClass) as AirlineWeightClass[]) {
+    const airlines = byClass[cls];
+    const overflow = airlines.length - AIRLINE_CLASS_CAPS[cls];
+    if (overflow <= 0) continue;
+
+    const sorted = faker.helpers
+      .shuffle(airlines)
+      .sort((a, b) => routeCountByAirline.get(a)! - routeCountByAirline.get(b)!);
+    sorted.slice(0, overflow).forEach((iata) => cut.add(iata));
+  }
+  if (cut.size === 0) return sequences;
+
+  // Reprieve: never let a non-regional edge lose every airline that serves it. Recorded as
+  // (edge, airline) pairs — the reprieve only exempts that one edge, not the airline globally.
+  const airlinesPerEdge = new Map<string, Set<string>>();
+  for (const sequence of sequences) {
+    for (const leg of sequence) {
+      if (await isRegionalLeg(leg, getAirport)) continue;
+      const key = edgeKey(leg);
+      if (!airlinesPerEdge.has(key)) airlinesPerEdge.set(key, new Set());
+      airlinesPerEdge.get(key)!.add(leg.travelInfo.airline);
+    }
+  }
+
+  const reprieved = new Set<string>();
+  for (const [key, airlines] of airlinesPerEdge) {
+    const survives = [...airlines].some((iata) => !cut.has(iata));
+    if (!survives) {
+      const pick = faker.helpers.arrayElement([...airlines]);
+      reprieved.add(`${key}|${pick}`);
+    }
+  }
+
+  return sequences.filter(
+    (sequence) =>
+      !sequence.some(
+        (leg) => cut.has(leg.travelInfo.airline) && !reprieved.has(`${edgeKey(leg)}|${leg.travelInfo.airline}`),
+      ),
+  );
+}
+
+// FLIGHT_GENERATOR.md Normalization: Route Collection Trimming. MAX_ROUTES (Path Flow) is only
+// a hard safety cap on generation, not a realistic result-set size. Sampled uniformly at random
+// rather than by any ranking, so surviving departures (already spread out by Time Flow) keep an
+// uneven scatter across the window as a side effect, instead of the artificial clustering a
+// "keep the first/earliest N" trim would produce.
+const MAX_PRESENTED_ROUTES = 50;
+
+function trimToPresentedLimit(sequences: Flight[][]): Flight[][] {
+  if (sequences.length <= MAX_PRESENTED_ROUTES) return sequences;
+  return faker.helpers.shuffle(sequences).slice(0, MAX_PRESENTED_ROUTES);
+}
+
+// Normalization entry point, run on the Time Flow output before groupRoutes: weight airline
+// distribution (skipped entirely for direct-regional route sets — see applyAirlineWeighting),
+// then trim to a presentable collection size.
+export async function applyNormalization(sequences: Flight[][], isDirectRegional: boolean): Promise<Flight[][]> {
+  const weighted = isDirectRegional ? sequences : await applyAirlineWeighting(sequences);
+  return trimToPresentedLimit(weighted);
 }
 
 // Route-level pricing collapses each leg's cheapest fare — regular or economy, premium cabins

@@ -2,7 +2,14 @@ import type { FastifyRequest } from 'fastify';
 import { faker } from '@faker-js/faker';
 import { ApiError } from '../../../types.js';
 import { cacheKey, getCached, setCached } from '../../../core/cache.js';
-import { findDirectFlights, findConnectingRoutes, applyTimeFlow, groupRoutes, generateId } from './generator.js';
+import {
+  findDirectFlights,
+  findConnectingRoutes,
+  applyTimeFlow,
+  applyNormalization,
+  groupRoutes,
+  generateId,
+} from './generator.js';
 import { TravelStore } from './store.js';
 import { storeRoutes, getStoredFlight, getStoredRoute } from './instance-store.js';
 import { logFlow } from '../../../core/logger.js';
@@ -69,7 +76,8 @@ async function findRoutesForLeg(
     const sequences: Flight[][] =
       direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date);
     const timed = await applyTimeFlow(sequences, date);
-    const generated = groupRoutes(timed);
+    const normalized = await applyNormalization(timed, direct.length > 0);
+    const generated = groupRoutes(normalized);
     setCached(cacheKeyVal, generated, CACHE_TTL);
 
     logFlow({
