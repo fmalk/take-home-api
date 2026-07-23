@@ -210,7 +210,9 @@ src/
 2. Run linter frequently to catch issues early
 3. Write tests for new features
 4. Use meaningful commit messages
-5. The user will review committed code
+5. Update semver tag when a commit or merge is made
+  1. Don't do MAJOR updates without confirmation
+6. The user will review committed code
 
 ### Before Committing
 
