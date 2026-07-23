@@ -209,11 +209,31 @@ src/
 1. Use TypeScript for type safety
 2. Run linter frequently to catch issues early
 3. Write tests for new features
-4. Use [Conventional Commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `feat!:`/`BREAKING CHANGE:`) so semver tags can be derived automatically
+4. Use [Conventional Commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `feat!:`/`BREAKING CHANGE:`) so semver tags can be derived automatically — this applies to every commit, including ones authored by Claude Code/AI agents, not just human contributors
 5. Versioning and tagging are automated by [release-please](https://github.com/googleapis/release-please) (`.github/workflows/release-please.yml`): it keeps a release PR up to date with the version bump and changelog inferred from commits since the last tag
-   1. Merging that PR is what cuts the git tag/GitHub release and bumps `package.json` — this merge is the confirmation step, so MAJOR (and any other) bumps are never applied without a human merging the PR
-   2. Don't hand-edit `package.json`'s `version` or `.release-please-manifest.json` outside of that merge flow
+  1. Merging that PR is what cuts the git tag/GitHub release and bumps `package.json` — this merge is the confirmation step, so MAJOR (and any other) bumps are never applied without a human merging the PR
+  2. Don't hand-edit `package.json`'s `version` or `.release-please-manifest.json` outside of that merge flow
 6. The user will review committed code
+
+### Commit Message Format
+
+Every commit subject line must start with a Conventional Commits type:
+
+| Type | When to use | Version bump |
+| --- | --- | --- |
+| `fix:` | Bug fix | patch |
+| `feat:` | New feature/capability | minor (patch pre-1.0) |
+| `feat!:` or `fix!:` (or a `BREAKING CHANGE:` footer) | Breaking change | major (minor pre-1.0) |
+| `docs:` | Documentation only | none |
+| `refactor:` | Code change that's neither a fix nor a feature | none |
+| `test:` | Adding/fixing tests only | none |
+| `chore:` | Tooling, deps, config — no source behavior change | none |
+| `ci:` | CI/CD pipeline changes | none |
+
+- Optional scope in parentheses: `feat(auth): add token refresh`
+- Body (optional): blank line, then free text explaining *why*
+- Breaking change footer (if not using `!`): blank line, then `BREAKING CHANGE: <description>`
+- release-please reads these prefixes to decide what goes in the next release PR — an unprefixed or mislabeled commit either gets ignored for changelog purposes or bumps the wrong version segment
 
 ### Before Committing
 
