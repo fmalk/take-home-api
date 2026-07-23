@@ -1,5 +1,12 @@
 # take-home-api
 
+[![Docker Publish](https://github.com/fmalk/take-home-api/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fmalk/take-home-api/actions/workflows/docker-publish.yml)
+[![Release Please](https://github.com/fmalk/take-home-api/actions/workflows/release-please.yml/badge.svg)](https://github.com/fmalk/take-home-api/actions/workflows/release-please.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/fernandopj/take-home-api)](https://hub.docker.com/r/fernandopj/take-home-api)
+[![GitHub release](https://img.shields.io/github/v/release/fmalk/take-home-api)](https://github.com/fmalk/take-home-api/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/fmalk/take-home-api/blob/main/LICENSE)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](package.json)
+
 A ready-made, well-designed REST API mimicking many **real world scenarios**.
 
 Each scenario models a realistic business domain — e-commerce, airline booking, food delivery, banking ledger, show tickets, scheduling appointments — fully implemented and served out of the box. No backend to design, no server to write. Just a real API with a friendly, well-documented flow, ready to run.
