@@ -15,7 +15,7 @@
   - This project claims **no responsibility for information correctness**
   - Metadata around them are fictional.
 - **All generated flight data is mocked**, there's no correlation to any real past, present or future flight.
-- The four main travel CSV files are the source of truth, read-only by the engine. The `travel.sqlite` is buildable from the CSV files, and the runtime uses it also as read-only.
+- The five travel CSV files are the source of truth, read-only by the engine. The `travel.sqlite` is buildable from the CSV files, and the runtime uses it also as read-only.
 
 ## Validations
 

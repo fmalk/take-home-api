@@ -24,7 +24,7 @@ We would use those as input to Take Home Coding challenges. We were a mobile-foc
 2. **Learn how a REST API works** by following real use-case flows.
 3. **Write integration tests** against a live, realistic target.
 4. **Take Home assessments**: go to /docs to check how to use the API.
-5. _Near-Future_: use the provided MCP server for your AI agents.
+5. *Near-Future*: use the provided MCP server for your AI agents.
 
 Inspirations
 
@@ -55,10 +55,11 @@ Every scenario ships with an OpenAPI/Swagger spec and a set of static reference 
 You can run the API via docker image locally:
 
 ```bash
+docker build . <image>
 docker run <image>
 ```
 
-_(image name and instructions to be added once published to Docker Hub)._
+*(image name and instructions to be added once published to Docker Hub).*
 
 You can also consume it free at:
 
@@ -66,7 +67,7 @@ You can also consume it free at:
 https://app.takehome.codes/api
 ```
 
-_(Open server to be determined later. Throttling limits apply)._
+*(Open server to be determined later. Throttling limits apply).*
 
 ## Disclaimer
 
