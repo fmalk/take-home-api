@@ -71,8 +71,8 @@ function makeFlightNumber(airlineIata: string): string {
 }
 
 // One seat class per FlightPricing object — mutually exclusive by design (see FlightPricing
-// type). An airline that doesn't segment cabins (no economy/business/first flags) sells a single
-// undifferentiated "regular" class instead.
+// type). Which classes an airline sells is driven entirely by its regular/economy/business/first
+// flags (see pickSeatClasses) — including premium-only carriers with no regular flag.
 type SeatClass = 'regular' | 'economy' | 'businessClass' | 'firstClass';
 
 // Premium classes cost more per km, economy undercuts regular; see classBasePriceUsd below.
@@ -83,14 +83,13 @@ const SEAT_CLASS_PRICE_MULTIPLIER: Record<SeatClass, number> = {
   firstClass: 4.5,
 };
 
-// `regular` is a baseline every airline serves, alongside whichever premium tiers it's flagged
-// for. An airline serving business/first also serves regular (there's no premium-only carrier);
-// an airline serving economy serves only economy+regular (no premium tiers). Only four combos
-// are possible: R, E+R, R+B, R+B+F.
+// `regular` is offered whenever an airline is flagged for it, alongside whichever premium tiers
+// it's flagged for — a premium-only carrier (no regular flag) sells just business/first.
 function pickSeatClasses(airline: Airline): SeatClass[] {
   if (airline.hasEconomyClass) return ['regular', 'economy'];
 
-  const classes: SeatClass[] = ['regular'];
+  const classes: SeatClass[] = [];
+  if (airline.hasRegularClass) classes.push('regular');
   if (airline.hasBusinessClass) classes.push('businessClass');
   if (airline.hasFirstClass) classes.push('firstClass');
   return classes;

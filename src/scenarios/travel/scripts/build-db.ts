@@ -43,6 +43,7 @@ interface AirlineRow {
   country: string;
   countryCode: string;
   lowCost: boolean;
+  regular: boolean;
   firstClass: boolean;
   businessClass: boolean;
   loyalty: boolean;
@@ -144,9 +145,10 @@ function parseAirlines(filePath: string): AirlineRow[] {
     country: r[3],
     countryCode: r[4],
     lowCost: r[5] === '1',
-    firstClass: r[6] === '1',
-    businessClass: r[7] === '1',
-    loyalty: r[8] === '1',
+    regular: r[6] === '1',
+    firstClass: r[7] === '1',
+    businessClass: r[8] === '1',
+    loyalty: r[9] === '1',
   }));
 }
 
@@ -593,6 +595,7 @@ async function buildDb(): Promise<void> {
             country_code TEXT NOT NULL,
             is_real INTEGER NOT NULL,
             low_cost INTEGER NOT NULL,
+            regular INTEGER NOT NULL,
             first_class INTEGER NOT NULL,
             business_class INTEGER NOT NULL,
             loyalty INTEGER NOT NULL
@@ -647,8 +650,8 @@ async function buildDb(): Promise<void> {
   insertAirport.free();
 
   const insertAirline = db.prepare(`
-        INSERT INTO airlines (iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class, loyalty)
-        VALUES (:iata, :icao, :name, :country, :country_code, :is_real, :low_cost, :first_class, :business_class, :loyalty)
+        INSERT INTO airlines (iata, icao, name, country, country_code, is_real, low_cost, regular, first_class, business_class, loyalty)
+        VALUES (:iata, :icao, :name, :country, :country_code, :is_real, :low_cost, :regular, :first_class, :business_class, :loyalty)
     `);
   for (const airline of fictionalAirlines) {
     insertAirline.run({
@@ -659,6 +662,7 @@ async function buildDb(): Promise<void> {
       ':country_code': airline.countryCode,
       ':is_real': 0,
       ':low_cost': airline.lowCost ? 1 : 0,
+      ':regular': airline.regular ? 1 : 0,
       ':first_class': airline.firstClass ? 1 : 0,
       ':business_class': airline.businessClass ? 1 : 0,
       ':loyalty': airline.loyalty ? 1 : 0,
@@ -673,6 +677,7 @@ async function buildDb(): Promise<void> {
       ':country_code': airline.countryCode,
       ':is_real': 1,
       ':low_cost': airline.lowCost ? 1 : 0,
+      ':regular': airline.regular ? 1 : 0,
       ':first_class': airline.firstClass ? 1 : 0,
       ':business_class': airline.businessClass ? 1 : 0,
       ':loyalty': airline.loyalty ? 1 : 0,

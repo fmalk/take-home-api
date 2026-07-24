@@ -9,7 +9,7 @@ export type V1Airport = Omit<
 >;
 export type V1Airline = Omit<
   Airline,
-  'icao' | 'hasEconomyClass' | 'hasBusinessClass' | 'hasFirstClass' | 'hasLoyaltyProgram'
+  'icao' | 'hasRegularClass' | 'hasEconomyClass' | 'hasBusinessClass' | 'hasFirstClass' | 'hasLoyaltyProgram'
 >;
 // Drops the class-broken-out shapes, keeping only the flat `price`/`available` fields.
 // Formats flightTimeHours as HH:MM string and flightDistanceKms as integer.

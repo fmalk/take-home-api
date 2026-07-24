@@ -56,6 +56,7 @@ function rowToAirline(row: Record<string, unknown>): Airline {
     name: row.name as string,
     country: row.country as string,
     countryCode: row.country_code as string,
+    hasRegularClass: Boolean(row.regular),
     hasEconomyClass: Boolean(row.low_cost),
     hasBusinessClass: Boolean(row.business_class),
     hasFirstClass: Boolean(row.first_class),
@@ -134,7 +135,7 @@ export class TravelStore {
     const db = await this.ensureDatabase();
 
     const stmt = db.prepare(
-      'SELECT iata, icao, name, country, country_code, is_real, low_cost, first_class, business_class, loyalty FROM airlines WHERE is_real = :is_real',
+      'SELECT iata, icao, name, country, country_code, is_real, low_cost, regular, first_class, business_class, loyalty FROM airlines WHERE is_real = :is_real',
     );
     stmt.bind({ ':is_real': USE_REAL_AIRLINES ? 1 : 0 });
     const airlines: Airline[] = [];
@@ -155,7 +156,7 @@ export class TravelStore {
     const db = await this.ensureDatabase();
 
     const stmt = db.prepare(
-      'SELECT iata, icao, name, country, country_code, low_cost, first_class, business_class, loyalty FROM airlines',
+      'SELECT iata, icao, name, country, country_code, low_cost, regular, first_class, business_class, loyalty FROM airlines',
     );
     const airlines: Airline[] = [];
 
@@ -184,7 +185,7 @@ export class TravelStore {
     if (opts.regionalTo) conds.push('aa2.regional = 1');
 
     const stmt = db.prepare(`
-      SELECT DISTINCT al.iata, al.icao, al.name, al.country, al.country_code, al.low_cost, al.first_class, al.business_class, al.loyalty
+      SELECT DISTINCT al.iata, al.icao, al.name, al.country, al.country_code, al.low_cost, al.regular, al.first_class, al.business_class, al.loyalty
       FROM airport_airlines aa1
       JOIN airport_airlines aa2 ON aa2.airline_iata = aa1.airline_iata
       JOIN airlines al ON al.iata = aa1.airline_iata

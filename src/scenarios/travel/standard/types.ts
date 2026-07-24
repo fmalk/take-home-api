@@ -34,6 +34,7 @@ export interface Airline {
   name: string;
   country: string;
   countryCode: string;
+  hasRegularClass: boolean;
   hasEconomyClass: boolean;
   hasBusinessClass: boolean;
   hasFirstClass: boolean;
