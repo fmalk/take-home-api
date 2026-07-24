@@ -10,10 +10,10 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/health",
+          "raw": "http://localhost:{{port}}/health",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["health"]
         }
       },
@@ -25,11 +25,26 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/swagger",
+          "raw": "http://localhost:{{port}}/api/travel/v2/swagger",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "swagger"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Postman",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v2/postman",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v2", "postman"]
         }
       },
       "response": []
@@ -40,10 +55,10 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/airports",
+          "raw": "http://localhost:{{port}}/api/travel/v2/airports",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "airports"]
         }
       },
@@ -55,10 +70,10 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/cities",
+          "raw": "http://localhost:{{port}}/api/travel/v2/cities",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "cities"]
         }
       },
@@ -79,10 +94,10 @@
           "raw": "{\n  \"username\": \"jsmith\",\n  \"password\": \"tr@veljsmit\"\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/login",
+          "raw": "http://localhost:{{port}}/api/travel/v2/login",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "login"]
         }
       },
@@ -99,10 +114,10 @@
           }
         ],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/user",
+          "raw": "http://localhost:{{port}}/api/travel/v2/user",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "user"]
         }
       },
@@ -114,23 +129,63 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/search?from=CNF&to=GRU&departureDate=2026-11-20",
+          "raw": "http://localhost:{{port}}/api/travel/v2/search",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "search"],
           "query": [
             {
               "key": "from",
-              "value": "CNF"
+              "value": ""
             },
             {
               "key": "to",
-              "value": "GRU"
+              "value": ""
             },
             {
               "key": "departureDate",
-              "value": "2026-11-20"
+              "value": "",
+              "description": "YYYY-MM-DD"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search (RoundTrip)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v2/search",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v2", "search"],
+          "query": [
+            {
+              "key": "from",
+              "value": ""
+            },
+            {
+              "key": "to",
+              "value": ""
+            },
+            {
+              "key": "departureDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
+            },
+            {
+              "key": "mode",
+              "value": "RoundTrip"
+            },
+            {
+              "key": "returnDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
             }
           ]
         }
@@ -156,13 +211,13 @@
           "raw": "{\n  \"mode\": \"OneWay\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/purchase",
+          "raw": "http://localhost:{{port}}/api/travel/v2/purchase",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "purchase"]
         },
-        "description": "outboundRouteId and price come from a prior Search response's outbound route (its `pricing[].minimum` for the chosen currency); route IDs expire ~5 minutes after the search."
+        "description": "outboundRouteId and price come from a prior Search response's outbound route; route IDs expire ~5 minutes after the search."
       },
       "response": []
     },
@@ -185,50 +240,13 @@
           "raw": "{\n  \"mode\": \"RoundTrip\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"inboundId\": \"{{inboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/api/travel/v2/purchase",
+          "raw": "http://localhost:{{port}}/api/travel/v2/purchase",
           "protocol": "http",
           "host": ["localhost"],
-          "port": "3000",
+          "port": "{{port}}",
           "path": ["api", "travel", "v2", "purchase"]
         },
-        "description": "price must equal (within 0.02) the sum of the outbound and inbound routes' `pricing[].minimum` for the chosen currency."
-      },
-      "response": []
-    },
-    {
-      "name": "Search (RoundTrip)",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "http://localhost:3000/api/travel/v2/search?from=CNF&to=GRU&departureDate=2026-11-20&mode=RoundTrip&returnDate=2026-11-27",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "3000",
-          "path": ["api", "travel", "v2", "search"],
-          "query": [
-            {
-              "key": "from",
-              "value": "CNF"
-            },
-            {
-              "key": "to",
-              "value": "GRU"
-            },
-            {
-              "key": "departureDate",
-              "value": "2026-11-20"
-            },
-            {
-              "key": "mode",
-              "value": "RoundTrip"
-            },
-            {
-              "key": "returnDate",
-              "value": "2026-11-27"
-            }
-          ]
-        }
+        "description": "price must equal the sum of the outbound and inbound routes for the chosen currency."
       },
       "response": []
     }
