@@ -16,3 +16,5 @@ Leave the user to find out schema differences by looking at Swagger docs and usi
 I believe Mintlify allows for OpenAPI usage directly from the pages, use that format if available.
 
 Colors and theme are already chosen, don't change them.
+
+DO NOT reference this file within Mintlify documentation.

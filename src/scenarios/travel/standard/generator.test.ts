@@ -219,6 +219,27 @@ describe('groupRoutes Normalization (synthetic)', () => {
     expect(route.pricing.map((p) => p.currency)).toEqual(['USD']);
   });
 
+  // Working as intended, not a bug: `pricing.available` reports the leg's whole-plane pool (the
+  // same figure as `route.available`), not the seat count specific to whichever class (regular
+  // or economy) actually won that leg's `minimum` fare. A travel agent browsing sees "45 seats
+  // on this flight" even though only a handful of those 45 are sellable at the cheapest fare —
+  // realistic enough for browsing; a user wanting to book more than the cheap-fare class holds
+  // would need to redo the search with stricter params (not modeled in this project).
+  it('reports the leg`s full available pool alongside `minimum`, not the cheaper class`s own (smaller) pool', () => {
+    const leg = makeFlight({
+      available: 45,
+      pricing: [
+        { currency: 'USD', available: 38, regular: 200 },
+        { currency: 'USD', available: 7, economy: 140 }, // cheaper fare, far fewer seats
+      ],
+    });
+
+    const [route] = groupRoutes([[leg]]);
+
+    expect(route.pricing).toEqual([{ currency: 'USD', available: 45, minimum: 140 }]);
+    expect(route.pricing[0].available).toBeGreaterThan(7);
+  });
+
   it('a zero-availability leg zeroes out the whole route`s availability (and pricing.available)', () => {
     const legA = makeFlight({ available: 30, pricing: [{ currency: 'USD', available: 30, regular: 100 }] });
     const legB = makeFlight({ available: 0, pricing: [{ currency: 'USD', available: 0, regular: 50 }] });
@@ -391,6 +412,106 @@ describe('applyAirlineWeighting', () => {
     const weighted = await applyAirlineWeighting(timed);
 
     expect(weighted.length).toBeGreaterThan(0);
+  });
+});
+
+describe('applyNormalization: per-class seat pool splitting', () => {
+  it('splits a single class across its own pricing rows using the full available count', async () => {
+    const flight = makeFlight({
+      available: 20,
+      pricing: [
+        { currency: 'USD', available: 20, regular: 100 },
+        { currency: 'EUR', available: 20, regular: 92 },
+      ],
+    });
+
+    const [[result]] = await applyNormalization([[flight]]);
+
+    expect(result.pricing.every((p) => p.available === 20)).toBe(true);
+    expect(result.available).toBe(20);
+  });
+
+  it('splits available across offered classes by weight (first 1 : business 2 : regular 6 : economy 7) and sums back exactly', async () => {
+    const flight = makeFlight({
+      available: 160,
+      pricing: [
+        { currency: 'USD', available: 160, firstClass: 500 },
+        { currency: 'USD', available: 160, businessClass: 300 },
+        { currency: 'USD', available: 160, regular: 100 },
+        { currency: 'USD', available: 160, economy: 70 },
+      ],
+    });
+
+    const [[result]] = await applyNormalization([[flight]]);
+
+    const byClass: Record<string, number> = {};
+    for (const entry of result.pricing) {
+      if (entry.firstClass !== undefined) byClass.firstClass = entry.available;
+      if (entry.businessClass !== undefined) byClass.businessClass = entry.available;
+      if (entry.regular !== undefined) byClass.regular = entry.available;
+      if (entry.economy !== undefined) byClass.economy = entry.available;
+    }
+
+    // weights 1:2:6:7 over 16 shares of 160 => 10:20:60:70
+    expect(byClass).toEqual({ firstClass: 10, businessClass: 20, regular: 60, economy: 70 });
+    expect(Object.values(byClass).reduce((a, b) => a + b, 0)).toBe(160);
+  });
+
+  it('omits a class entirely from the weighting when the airline does not offer it (hasRegularClass: false case)', async () => {
+    const flight = makeFlight({
+      available: 30,
+      pricing: [
+        { currency: 'USD', available: 30, firstClass: 500 },
+        { currency: 'USD', available: 30, businessClass: 300 },
+      ],
+    });
+
+    const [[result]] = await applyNormalization([[flight]]);
+
+    const byClass: Record<string, number> = {};
+    for (const entry of result.pricing) {
+      if (entry.firstClass !== undefined) byClass.firstClass = entry.available;
+      if (entry.businessClass !== undefined) byClass.businessClass = entry.available;
+    }
+
+    // only first(1)/business(2) offered => 1/3 and 2/3 of 30
+    expect(byClass).toEqual({ firstClass: 10, businessClass: 20 });
+  });
+
+  it('gives every offered class at least 1 seat, even one whose weighted share rounds to 0', async () => {
+    const flight = makeFlight({
+      available: 10,
+      pricing: [
+        { currency: 'USD', available: 10, firstClass: 500 },
+        { currency: 'USD', available: 10, economy: 70 },
+      ],
+    });
+
+    const [[result]] = await applyNormalization([[flight]]);
+
+    const byClass: Record<string, number> = {};
+    for (const entry of result.pricing) {
+      if (entry.firstClass !== undefined) byClass.firstClass = entry.available;
+      if (entry.economy !== undefined) byClass.economy = entry.available;
+    }
+
+    expect(byClass.firstClass).toBeGreaterThanOrEqual(1);
+    expect(byClass.economy).toBeGreaterThanOrEqual(1);
+    expect(byClass.firstClass + byClass.economy).toBe(10);
+  });
+
+  it('leaves Flight-level available (the aircraft pool) untouched', async () => {
+    const flight = makeFlight({
+      available: 45,
+      pricing: [
+        { currency: 'USD', available: 45, regular: 100 },
+        { currency: 'USD', available: 45, economy: 70 },
+      ],
+    });
+
+    const [[result]] = await applyNormalization([[flight]]);
+
+    expect(result.available).toBe(45);
   });
 });
 

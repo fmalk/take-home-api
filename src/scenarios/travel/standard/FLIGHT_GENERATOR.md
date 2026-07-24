@@ -82,6 +82,7 @@ After a valid Flight[] sequence is built (direct or via hub path), aggregate Fli
 - `available` (seats): minimum across all legs (a 0-seat leg blocks the whole route).
 - `price`: sum across all legs.
 - `pricing`: per currency, the cheapest bookable fare (regular or economy, whichever is lower) on each leg, summed across legs, exposed as a `minimum` field (not a specific seat class — a Route can't promise one class end-to-end when legs may not all sell it). Only currencies every leg actually offers are included, same rule as `available`.
+  - `pricing[].available` intentionally reuses the same whole-plane-pool minimum as the Route's own `available`, not the (smaller) per-class pool of whichever class actually won each leg's `minimum` fare. This is a deliberate simplification: it's a browsing figure ("this flight has 45 seats"), not a guarantee that all 45 are bookable at the quoted minimum price — a real travel agent would still show the full plane count here even if the cheap fare only covers a handful of them. A user wanting to book more seats than the cheap-fare class holds would need to redo the search with stricter params; that refinement isn't modeled in this project.
 
 ## Time Flow
 
@@ -135,7 +136,7 @@ Each Flight is assigned an `available` seat count and a set of cabin classes it 
 
 - `available` is a random integer in `[10, aircraft.capacity]` — bounded above by the chosen aircraft's capacity, but not fixed to it, so identical aircraft don't always report a full plane.
 - Cabin classes come from `pickSeatClasses(airline)`: `regular` is always offered; if the airline has `hasEconomyClass`, `economy` is added; `businessClass` and `firstClass` are added individually per the airline's corresponding flags. `SeatClass` is `'regular' | 'economy' | 'businessClass' | 'firstClass'`.
-- There is no per-class seat pool split — every offered class on a Flight is sold against the same `available` count rather than a fraction of it. Splitting `available` across classes realistically is a later Normalization concern (see below).
+- There is no per-class seat pool split at generation time — every offered class on a Flight is sold against the same `available` count rather than a fraction of it. Splitting `available` across classes realistically is a Normalization concern (see below).
 
 ## Pricing
 
@@ -161,10 +162,16 @@ Not every airline combination Path Flow finds is worth presenting — full diver
 - **Premium-only retention**: every premium-only carrier present on the edge (no `regular`/economy tier at all — sells strictly first/business, e.g. NV/B0) is added back in regardless of whether it made the top/bottom cut. These are rare and deliberately educational, so this stage must never be the reason one goes missing — unlike a merely premium but mixed-cabin carrier (e.g. one that also sells regular seats), which has no such guarantee and can be trimmed normally. A later stage (Route Collection Trimming, below) can still legitimately drop one.
 - **Route removal**: a Route (`Flight[]` sequence) is dropped if any hub-to-hub leg lost its airline on this pass. Connector legs never disqualify a route, since they're never trimmed.
 
+### Per-Class Seat Pool Splitting
+
+`applySeatClassSplit()` carves each Flight's single `available` pool into a per-class figure instead of every offered class sharing the full count:
+
+- Weights are fixed regardless of which classes an airline offers: `firstClass` 1, `businessClass` 2, `regular` 6, `economy` 7. An airline missing a class (e.g. `hasRegularClass: false`, see the `Airline` type in TRAVEL.md) simply never contributes that weight — the classes it does offer still split proportionally among just themselves, not against a 16-share denominator that assumes all four exist.
+- Split via floor + largest-remainder so the per-class parts sum back to exactly the Flight's `available` rather than drifting from independently rounding each share.
+- Every offered class keeps at least 1 seat (when `available > 0`), even if its weighted share would round to 0 — a class with `SeatClass` pricing is never advertised as sold out purely from rounding. If enforcing that floor pushes the total over `available` (many offered classes on a very small pool), the excess is clawed back from the lowest-weighted classes first, so premium cabins keep their seat over regular/economy.
+- Flight-level `available` (the aircraft pool used by Route aggregation's per-leg minimum) is untouched — only the per-class figures on each `FlightPricing` row change. All currency rows for the same class on a Flight get the same split count, since the pool is per-class, not per-currency.
+- Runs after Airline Distribution Weighting and before Route Collection Trimming, in `applyNormalization()`.
+
 ### Route Collection Trimming
 
-`MAX_ROUTES` (1000, in Path Flow) is only a hard safety cap on generation, not a realistic result-set size. After Airline Distribution Weighting, `applyNormalization()` samples the (already-weighted) collection down to `MAX_PRESENTED_ROUTES` (50) per direction if it's still over that size — picked uniformly at random rather than by any ranking, so the surviving departures keep an uneven scatter across Time Flow's window as a side effect, instead of the artificial clustering a "keep the first/earliest N" trim would produce. A collection already at or under 50 after weighting is left untouched.
-
-### Still undone
-
-- **Per-class seat pool splitting**: as noted in Seat Offering, every cabin class on a Flight currently shares the same `available` count instead of each class holding a realistic fraction of it.
+`MAX_ROUTES` (1000, in Path Flow) is only a hard safety cap on generation, not a realistic result-set size. After Airline Distribution Weighting and the seat-class split, `applyNormalization()` samples the collection down to `MAX_PRESENTED_ROUTES` (50) per direction if it's still over that size — picked uniformly at random rather than by any ranking, so the surviving departures keep an uneven scatter across Time Flow's window as a side effect, instead of the artificial clustering a "keep the first/earliest N" trim would produce. A collection already at or under 50 after weighting is left untouched.

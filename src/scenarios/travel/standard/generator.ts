@@ -110,8 +110,8 @@ function classBasePriceUsd(distanceKms: number, seatClass: SeatClass): number {
 // One FlightPricing object per (seat class × currency) combination — never more than one class
 // field set per object (TRAVEL.md "Alternative currencies" / seat-class edge cases). Currencies
 // offered are USD (universal) plus the departure airport's local currency, if different.
-// Every class is offered against the flight's full `available` seat count for now — classes
-// aren't cabins carved out of one shared pool yet; that weighting is a later Normalization step.
+// Every class is offered against the flight's full `available` seat count at generation time;
+// applySeatClassSplit() (Normalization) later carves that pool into per-class fractions.
 async function makePricing(
   distanceKms: number,
   available: number,
@@ -722,12 +722,92 @@ function trimToPresentedLimit(sequences: Flight[][]): Flight[][] {
   return faker.helpers.shuffle(sequences).slice(0, MAX_PRESENTED_ROUTES);
 }
 
+// FLIGHT_GENERATOR.md Normalization: Per-Class Seat Pool Splitting. Every class on a Flight was
+// generated against the same shared `available` count (see makePricing); this carves that one
+// pool into per-class fractions so cabins don't each independently claim the full plane.
+// Weights are fixed regardless of which classes an airline actually offers (see pickSeatClasses)
+// — an airline missing a class (e.g. hasRegularClass: false) simply never contributes that
+// weight, the remaining offered classes still split proportionally among themselves.
+const SEAT_CLASS_WEIGHT: Record<SeatClass, number> = {
+  firstClass: 1,
+  businessClass: 2,
+  regular: 6,
+  economy: 7,
+};
+
+// Every FlightPricing row for a given seat class (one per currency) gets the same split count —
+// the pool is per-class, not per-currency. Split via floor + largest-remainder so the parts sum
+// back to exactly `available` rather than drifting from independent rounding, and every offered
+// class keeps at least 1 seat (when available > 0) even if its weighted share rounds to 0.
+function splitAvailableByClass(available: number, classes: SeatClass[]): Map<SeatClass, number> {
+  const result = new Map<SeatClass, number>();
+  if (classes.length === 0) return result;
+  if (available <= 0) {
+    for (const seatClass of classes) result.set(seatClass, 0);
+    return result;
+  }
+
+  const totalWeight = classes.reduce((sum, c) => sum + SEAT_CLASS_WEIGHT[c], 0);
+  const raw = classes.map((seatClass) => ({
+    seatClass,
+    exact: (available * SEAT_CLASS_WEIGHT[seatClass]) / totalWeight,
+  }));
+
+  let allocated = 0;
+  for (const { seatClass, exact } of raw) {
+    const floor = Math.max(1, Math.floor(exact));
+    result.set(seatClass, floor);
+    allocated += floor;
+  }
+
+  let remainder = available - allocated;
+  const byRemainder = [...raw].sort((a, b) => b.exact - Math.floor(b.exact) - (a.exact - Math.floor(a.exact)));
+  for (const { seatClass } of byRemainder) {
+    if (remainder <= 0) break;
+    result.set(seatClass, result.get(seatClass)! + 1);
+    remainder -= 1;
+  }
+  // Rare over-allocation case: many offered classes on a tiny `available` count, where the
+  // per-class floor of 1 pushes the sum above `available`. Claw back from the lowest-weighted
+  // classes first (economy/regular before business/first) so premium cabins keep their seat.
+  const byWeightAsc = [...classes].sort((a, b) => SEAT_CLASS_WEIGHT[a] - SEAT_CLASS_WEIGHT[b]);
+  for (const seatClass of byWeightAsc) {
+    if (remainder >= 0) break;
+    const current = result.get(seatClass)!;
+    if (current <= 0) continue;
+    result.set(seatClass, current - 1);
+    remainder += 1;
+  }
+
+  return result;
+}
+
+// Mutates each Flight's pricing rows in place: every FlightPricing.available becomes its class's
+// weighted share of the Flight's full `available` pool instead of the shared full count. Flight-
+// level `available` (the aircraft pool) is left untouched — Route aggregation still takes the min
+// of that across legs (see groupRoutes); only the per-class/per-currency figures change here.
+function applySeatClassSplit(sequences: Flight[][]): Flight[][] {
+  for (const sequence of sequences) {
+    for (const flight of sequence) {
+      const classes = Array.from(new Set(flight.pricing.map((p) => PRICE_TIER_ORDER.find((c) => p[c] !== undefined)!)));
+      const split = splitAvailableByClass(flight.available, classes);
+      for (const entry of flight.pricing) {
+        const seatClass = PRICE_TIER_ORDER.find((c) => entry[c] !== undefined);
+        if (seatClass) entry.available = split.get(seatClass)!;
+      }
+    }
+  }
+  return sequences;
+}
+
 // Normalization entry point, run on the Time Flow output before groupRoutes: weight airline
 // distribution (a no-op when the collection has no hub-to-hub legs at all, e.g. direct-regional
-// route sets — see applyAirlineWeighting), then trim to a presentable collection size.
+// route sets — see applyAirlineWeighting), split each Flight's seat pool per class, then trim to
+// a presentable collection size.
 export async function applyNormalization(sequences: Flight[][]): Promise<Flight[][]> {
   const weighted = await applyAirlineWeighting(sequences);
-  return trimToPresentedLimit(weighted);
+  const split = applySeatClassSplit(weighted);
+  return trimToPresentedLimit(split);
 }
 
 // Route-level pricing collapses each leg's cheapest fare — regular or economy, premium cabins
@@ -752,6 +832,12 @@ function legMinimumPriceByCurrency(leg: Flight): Map<string, number> {
 
 // Only currencies present on every leg are included — same rule as `available`: a leg that
 // can't sell in a currency blocks it for the whole route.
+//
+// `available` here is intentionally the same whole-plane-pool minimum as Route.available, not
+// the (smaller) per-class pool of whichever class actually won each leg's `minimum` fare — a
+// browsing figure ("this flight has 45 seats"), not a guarantee that all of them are bookable at
+// the quoted minimum price. A user wanting more seats than the cheap-fare class holds would need
+// to redo the search with stricter params — not modeled in this project.
 function aggregateRouteMinimumPricing(sequence: Flight[]): RoutePricing[] {
   if (sequence.length === 0) return [];
 
