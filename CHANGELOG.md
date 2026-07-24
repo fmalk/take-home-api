@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/fmalk/take-home-api/compare/v0.5.2...v0.5.3) (2026-07-24)
+
+
+### Features
+
+* HUB_EDGE_KEEP_TOP/HUB_EDGE_KEEP_BOTTOM raised from 2/2 to 3/3 ([45db147](https://github.com/fmalk/take-home-api/commit/45db147d92b658233afd3e55566e53ca60597262))
+
 ## [0.5.2](https://github.com/fmalk/take-home-api/compare/v0.5.1...v0.5.2) (2026-07-23)
 
 ### Features
