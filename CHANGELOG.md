@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/fmalk/take-home-api/compare/v0.5.3...v0.5.4) (2026-07-24)
+
+
+### Features
+
+* seat normalization ([f720933](https://github.com/fmalk/take-home-api/commit/f720933b6c09603b5bd0a681655665f73d5b8d3e))
+
 ## [0.5.3](https://github.com/fmalk/take-home-api/compare/v0.5.2...v0.5.3) (2026-07-24)
 
 
