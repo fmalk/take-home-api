@@ -376,6 +376,24 @@ function linkJapanToHonolulu(insertLink: Statement, airports: AirportRow[], rost
   }
 }
 
+// Stage 5 - Premium-only exemption: Navegantes Aéreos (NV) and La Compagnie (B0) are excluded
+// from every standard stage (see linkAirportsToAirlines) and instead serve only this fixed trio
+// of hubs. Non-regional edges, so they behave like any other hub-to-hub premium link for route
+// construction. Runs after Stage 4 — see the call site for why.
+const PREMIUM_ONLY_EXEMPT_AIRLINE_IATAS = ['NV', 'B0'];
+const PREMIUM_ONLY_EXEMPT_HUB_IATAS = ['LIS', 'CDG', 'IST'];
+
+function linkPremiumOnlyExemptAirlines(insertLink: Statement, airports: AirportRow[], roster: AirlineRow[]): void {
+  const hubs = airports.filter((a) => a.distanceHub && PREMIUM_ONLY_EXEMPT_HUB_IATAS.includes(a.iata));
+  const airlines = roster.filter((a) => PREMIUM_ONLY_EXEMPT_AIRLINE_IATAS.includes(a.iata));
+
+  for (const airline of airlines) {
+    for (const hub of hubs) {
+      insertLink.run({ ':airport_iata': hub.iata, ':airline_iata': airline.iata, ':regional': 0 });
+    }
+  }
+}
+
 // Every hub must be reachable from every other hub via some sequence of shared-airline legs
 // (changing airlines between legs is fine) — otherwise a hub-to-hub route would be
 // impossible to construct. This is a build-time safety net, not a fix: if it throws, the CSV
@@ -434,7 +452,7 @@ function linkRegularAirportsToHubs(
         if (!airlinesByIata.has(airlineIata)) continue;
 
         const headquarters = headquartersByIata.get(airlineIata);
-        if (!headquarters || haversineDistanceKm(headquarters, airport) > MAX_HUB_RANGE_KM) continue;
+        if (!headquarters || haversineDistanceKm(headquarters, hub) > MAX_HUB_RANGE_KM) continue;
 
         // this will be considered a regional serving
         insertLink.run({ ':airport_iata': airport.iata, ':airline_iata': airlineIata, ':regional': 1 });
@@ -509,6 +527,7 @@ function linkAirportsToAirlines(
   airports: AirportRow[],
   fictionalAirlines: AirlineRow[],
   realAirlines: AirlineRow[],
+  premiumOnlyExemptAirlines: AirlineRow[],
 ): void {
   const insertLink = db.prepare(`
         INSERT OR IGNORE INTO airport_airlines (airport_iata, airline_iata, regional)
@@ -547,6 +566,11 @@ function linkAirportsToAirlines(
 
   // Stage 4
   linkLastMileAirlines(db, insertLink, normalAirports, regionalAirports);
+
+  // Stage 5 - runs last so premium-only exempt airlines can't leak into Stage 3/4's
+  // hub-proximity and last-mile propagation, which read already-inserted links from the DB
+  // rather than the roster parameters.
+  linkPremiumOnlyExemptAirlines(insertLink, linkableAirports, premiumOnlyExemptAirlines);
 
   assertOnlyIsolatedAirportsUnserved(db, airports);
 
@@ -711,11 +735,15 @@ async function buildDb(): Promise<void> {
   }
   insertCurrencyRate.free();
 
-  // Navegantes Aéreos / La Compagnie are premium-only special cases (no regular seats) that get
-  // their own airport association logic in a later task — exempt them from every standard stage.
-  const standardFictionalAirlines = fictionalAirlines.filter((a) => a.iata !== 'NV');
-  const standardRealAirlines = realAirlines.filter((a) => a.iata !== 'B0');
-  linkAirportsToAirlines(db, airports, standardFictionalAirlines, standardRealAirlines);
+  // Navegantes Aéreos / La Compagnie are premium-only special cases (no regular seats) — exempt
+  // them from every standard stage; Stage 5 links them directly to their fixed hub trio instead.
+  const allAirlines = [...fictionalAirlines, ...realAirlines];
+  const standardFictionalAirlines = fictionalAirlines.filter(
+    (a) => !PREMIUM_ONLY_EXEMPT_AIRLINE_IATAS.includes(a.iata),
+  );
+  const standardRealAirlines = realAirlines.filter((a) => !PREMIUM_ONLY_EXEMPT_AIRLINE_IATAS.includes(a.iata));
+  const premiumOnlyExemptAirlines = allAirlines.filter((a) => PREMIUM_ONLY_EXEMPT_AIRLINE_IATAS.includes(a.iata));
+  linkAirportsToAirlines(db, airports, standardFictionalAirlines, standardRealAirlines, premiumOnlyExemptAirlines);
 
   await saveDatabase(TRAVEL_DIR, DB_NAME);
   await dropDatabase(DB_NAME);
