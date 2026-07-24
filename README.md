@@ -1,11 +1,6 @@
 # take-home-api
 
-[![Docker Publish](https://github.com/fmalk/take-home-api/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fmalk/take-home-api/actions/workflows/docker-publish.yml)
-[![Release Please](https://github.com/fmalk/take-home-api/actions/workflows/release-please.yml/badge.svg)](https://github.com/fmalk/take-home-api/actions/workflows/release-please.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/fernandopj/take-home-api)](https://hub.docker.com/r/fernandopj/take-home-api)
-[![GitHub release](https://img.shields.io/github/v/release/fmalk/take-home-api)](https://github.com/fmalk/take-home-api/releases)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/fmalk/take-home-api/blob/main/LICENSE)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](package.json)
+[![Docker Publish](https://github.com/fmalk/take-home-api/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fmalk/take-home-api/actions/workflows/docker-publish.yml) [![Release Please](https://github.com/fmalk/take-home-api/actions/workflows/release-please.yml/badge.svg)](https://github.com/fmalk/take-home-api/actions/workflows/release-please.yml) [![Docker Pulls](https://img.shields.io/docker/pulls/fernandopj/take-home-api)](https://hub.docker.com/r/fernandopj/take-home-api) [![GitHub release](https://img.shields.io/github/v/release/fmalk/take-home-api)](https://github.com/fmalk/take-home-api/releases) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/fmalk/take-home-api/blob/main/LICENSE) [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](package.json)
 
 A ready-made, well-designed REST API mimicking many **real world scenarios**.
 
@@ -33,7 +28,7 @@ We would use those as input to Take Home Coding challenges. We were a mobile-foc
 2. **Learn how a REST API works** by following real use-case flows.
 3. **Write integration tests** against a live, realistic target.
 4. **Take Home assessments**: go to /docs to check how to use the API.
-5. *Near-Future*: use the provided MCP server for your AI agents.
+5. _Near-Future_: use the provided MCP server for your AI agents.
 
 Inspirations
 
