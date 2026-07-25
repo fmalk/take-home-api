@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.5](https://github.com/fmalk/take-home-api/compare/v0.5.4...v0.5.5) (2026-07-25)
+
+
+### Features
+
+* **travel:** add v3 scenario with full seat class exposure ([44dcd3a](https://github.com/fmalk/take-home-api/commit/44dcd3a8bb037318db6aa3f48b05a0a816d0f6e8))
+* **travel:** v3 purchase accepts per-flight seat selections ([c6dd29b](https://github.com/fmalk/take-home-api/commit/c6dd29baa950fec63fc81f0c9f7abd9d211d57cb))
+
 ## [0.5.4](https://github.com/fmalk/take-home-api/compare/v0.5.3...v0.5.4) (2026-07-24)
 
 
