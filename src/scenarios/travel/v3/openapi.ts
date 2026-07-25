@@ -6,6 +6,7 @@ import {
   routePricingResultItemSchema,
   loginBodySchema,
   purchaseBodySchema,
+  flightSeatSelectionSchema,
   omitSchemaFields,
 } from '../standard/openapi.js';
 
@@ -28,16 +29,8 @@ export const v3LoginBodySchema = loginBodySchema;
 // v3 is the first version to sell every seat individually: purchase drops the flat `price` in
 // favor of `seats`, one FlightSeatSelection per flight (outbound + inbound) — see
 // v3/types.ts's FlightSeatSelection and v3/controller.ts's purchase validation.
-const flightSeatSelectionSchema = {
-  type: 'object',
-  required: ['flightId', 'seatClass', 'currency', 'price'],
-  properties: {
-    flightId: { type: 'string', description: 'Flight ID this seat selection is for' },
-    seatClass: { type: 'string', enum: ['regular', 'economy', 'businessClass', 'firstClass'] },
-    currency: { type: 'string', description: 'Code for currency (three letters)' },
-    price: { type: 'number', description: 'Agreed price for this flight and seat class' },
-  },
-};
+// v3 uses the shared base shape as-is, same pattern as v3FlightPricingItemSchema.
+export const v3FlightSeatSelectionSchema = flightSeatSelectionSchema;
 
 export const v3PurchaseBodySchema = {
   ...omitSchemaFields(purchaseBodySchema, ['price']),
@@ -47,7 +40,7 @@ export const v3PurchaseBodySchema = {
     seats: {
       type: 'array',
       description: 'One seat selection per flight across the outbound (and inbound, for RoundTrip) routes',
-      items: flightSeatSelectionSchema,
+      items: v3FlightSeatSelectionSchema,
     },
   },
 };

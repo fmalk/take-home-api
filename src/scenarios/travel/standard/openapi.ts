@@ -563,6 +563,21 @@ export const purchaseBodySchema = {
   },
 };
 
+// Shared shape for a single seat choice on a per-seat purchase request (v3+): identifies which
+// flight the choice is for and which seat class was picked, plus the currency/price the client
+// saw when choosing. Kept here (not in a version's openapi.ts) so v4+ can reuse it unmodified,
+// same reasoning as flightPricingResultItemSchema.
+export const flightSeatSelectionSchema = {
+  type: 'object',
+  required: ['flightId', 'seatClass', 'currency', 'price'],
+  properties: {
+    flightId: { type: 'string', description: 'Flight ID this seat selection is for' },
+    seatClass: { type: 'string', enum: ['regular', 'economy', 'businessClass', 'firstClass'] },
+    currency: { type: 'string', description: 'Code for currency (three letters)' },
+    price: { type: 'number', description: 'Agreed price for this flight and seat class' },
+  },
+};
+
 export const purchaseResponseCoreProperties = {
   bookingCode: { type: 'string', description: 'Generated booking confirmation code' },
   mode: { type: 'string', enum: ['OneWay', 'RoundTrip'] },
