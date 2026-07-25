@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage
-        run: jest --reporters=jest-junit
+        run: npm run test:coverage
         env:
           JEST_JUNIT_CLASSNAME: '{filepath}'
 
