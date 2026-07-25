@@ -511,9 +511,10 @@ export const loginBodySchema = {
 
 export const loginResponseSchema = {
   type: 'object',
-  required: ['access_token', 'token_type', 'expires_in'],
+  required: ['access_token', 'refresh_token', 'token_type', 'expires_in'],
   properties: {
     access_token: { type: 'string' },
+    refresh_token: { type: 'string' },
     token_type: { type: 'string', enum: ['Bearer'] },
     expires_in: { type: 'number' },
   },
@@ -542,6 +543,31 @@ export const baseLoginSchema = {
 export const baseUserSchema = {
   response: {
     200: userResponseSchema,
+  },
+};
+
+export const refreshBodySchema = {
+  type: 'object',
+  required: ['refresh_token'],
+  properties: {
+    refresh_token: { type: 'string', description: 'Refresh token received from login' },
+  },
+};
+
+export const refreshResponseSchema = {
+  type: 'object',
+  required: ['access_token', 'token_type', 'expires_in'],
+  properties: {
+    access_token: { type: 'string' },
+    token_type: { type: 'string', enum: ['Bearer'] },
+    expires_in: { type: 'number' },
+  },
+};
+
+export const baseRefreshSchema = {
+  body: refreshBodySchema,
+  response: {
+    200: refreshResponseSchema,
   },
 };
 
