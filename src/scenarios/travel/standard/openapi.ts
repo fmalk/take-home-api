@@ -563,6 +563,21 @@ export const purchaseBodySchema = {
   },
 };
 
+// Shared shape for a single seat choice on a per-seat purchase request (v3+): identifies which
+// flight the choice is for and which seat class was picked, plus the currency/price the client
+// saw when choosing. Kept here (not in a version's openapi.ts) so v4+ can reuse it unmodified,
+// same reasoning as flightPricingResultItemSchema.
+export const flightSeatSelectionSchema = {
+  type: 'object',
+  required: ['flightId', 'seatClass', 'currency', 'price'],
+  properties: {
+    flightId: { type: 'string', description: 'Flight ID this seat selection is for' },
+    seatClass: { type: 'string', enum: ['regular', 'economy', 'businessClass', 'firstClass'] },
+    currency: { type: 'string', description: 'Code for currency (three letters)' },
+    price: { type: 'number', description: 'Agreed price for this flight and seat class' },
+  },
+};
+
 export const purchaseResponseCoreProperties = {
   bookingCode: { type: 'string', description: 'Generated booking confirmation code' },
   mode: { type: 'string', enum: ['OneWay', 'RoundTrip'] },
@@ -585,41 +600,51 @@ export const basePurchaseSchema = {
   },
 };
 
-export const purchaseParameters = {
-  post: {
-    summary: 'Purchase selected flights',
-    description: 'Confirm and purchase the previously searched outbound (and inbound, for RoundTrip) routes',
-    tags: [],
-    security: [{ bearerAuth: [] }],
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: purchaseBodySchema,
+// Takes the request-body schema as a parameter (defaulting to the full base), same pattern as
+// loginParameters — v3's purchase drops `price` for `pricing: FlightSeatSelection[]` (see
+// travel/v3/openapi.ts's v3PurchaseBodySchema) and needs its docs to match.
+export function purchaseParameters(bodySchema: ObjectSchema = purchaseBodySchema): Record<string, unknown> {
+  return {
+    post: {
+      summary: 'Purchase selected flights',
+      description: 'Confirm and purchase the previously searched outbound (and inbound, for RoundTrip) routes',
+      tags: [],
+      security: [{ bearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: bodySchema,
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Successful purchase',
+        },
+        '400': {
+          description: 'Invalid mode, mismatched round-trip routes, unavailable currency, or price mismatch',
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+        },
+        '404': {
+          description: 'Outbound or inbound route not found or expired',
         },
       },
     },
-    responses: {
-      '200': {
-        description: 'Successful purchase',
-      },
-      '400': {
-        description: 'Invalid mode, mismatched round-trip routes, unavailable currency, or price mismatch',
-      },
-      '401': {
-        description: 'Missing or invalid bearer token',
-      },
-      '404': {
-        description: 'Outbound or inbound route not found or expired',
-      },
-    },
-  },
-};
+  };
+}
 
 // Purchase isn't part of every version (v1 has no auth at all), so it's built separately from
-// buildTravelEndpoints, same reasoning as buildAuthEndpoints.
-export function buildPurchaseEndpoints(version: string): Record<string, unknown> {
-  return { [`/api/travel/${version}/purchase`]: purchaseParameters };
+// buildTravelEndpoints, same reasoning as buildAuthEndpoints. Pass a version-trimmed body schema
+// (e.g. v3PurchaseBodySchema) so the doc matches what that version's route actually validates;
+// defaults to the full base for a version with no trims.
+export function buildPurchaseEndpoints(
+  version: string,
+  bodySchema: ObjectSchema = purchaseBodySchema,
+): Record<string, unknown> {
+  return { [`/api/travel/${version}/purchase`]: purchaseParameters(bodySchema) };
 }
 
 export const travelSchemas = {

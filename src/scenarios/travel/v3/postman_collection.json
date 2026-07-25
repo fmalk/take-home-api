@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Take Home API - Travel V2",
+    "name": "Take Home API - Travel V3",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -25,11 +25,11 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/swagger",
+          "raw": "http://localhost:{{port}}/api/travel/v3/swagger",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "swagger"]
+          "path": ["api", "travel", "v3", "swagger"]
         }
       },
       "response": []
@@ -40,11 +40,11 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/postman",
+          "raw": "http://localhost:{{port}}/api/travel/v3/postman",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "postman"]
+          "path": ["api", "travel", "v3", "postman"]
         }
       },
       "response": []
@@ -55,11 +55,11 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/airports",
+          "raw": "http://localhost:{{port}}/api/travel/v3/airports",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "airports"]
+          "path": ["api", "travel", "v3", "airports"]
         }
       },
       "response": []
@@ -70,11 +70,11 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/cities",
+          "raw": "http://localhost:{{port}}/api/travel/v3/cities",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "cities"]
+          "path": ["api", "travel", "v3", "cities"]
         }
       },
       "response": []
@@ -94,11 +94,11 @@
           "raw": "{\n  \"username\": \"jsmith\",\n  \"password\": \"tr@veljsmit\"\n}"
         },
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/login",
+          "raw": "http://localhost:{{port}}/api/travel/v3/login",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "login"]
+          "path": ["api", "travel", "v3", "login"]
         }
       },
       "response": []
@@ -114,11 +114,11 @@
           }
         ],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/user",
+          "raw": "http://localhost:{{port}}/api/travel/v3/user",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "user"]
+          "path": ["api", "travel", "v3", "user"]
         }
       },
       "response": []
@@ -129,11 +129,11 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/search",
+          "raw": "http://localhost:{{port}}/api/travel/v3/search",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "search"],
+          "path": ["api", "travel", "v3", "search"],
           "query": [
             {
               "key": "from",
@@ -159,11 +159,11 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/search",
+          "raw": "http://localhost:{{port}}/api/travel/v3/search",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "search"],
+          "path": ["api", "travel", "v3", "search"],
           "query": [
             {
               "key": "from",
@@ -211,11 +211,11 @@
           "raw": "{\n  \"mode\": \"OneWay\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
         },
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/purchase",
+          "raw": "http://localhost:{{port}}/api/travel/v3/purchase",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "purchase"]
+          "path": ["api", "travel", "v3", "purchase"]
         },
         "description": "outboundRouteId and price come from a prior Search response's outbound route; route IDs expire ~5 minutes after the search."
       },
@@ -240,11 +240,11 @@
           "raw": "{\n  \"mode\": \"RoundTrip\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"inboundId\": \"{{inboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
         },
         "url": {
-          "raw": "http://localhost:{{port}}/api/travel/v2/purchase",
+          "raw": "http://localhost:{{port}}/api/travel/v3/purchase",
           "protocol": "http",
           "host": ["localhost"],
           "port": "{{port}}",
-          "path": ["api", "travel", "v2", "purchase"]
+          "path": ["api", "travel", "v3", "purchase"]
         },
         "description": "price must equal the sum of the outbound and inbound routes for the chosen currency."
       },
