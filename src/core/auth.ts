@@ -10,7 +10,6 @@ import { logFlow } from './logger.js';
 // plumbing per scenario. Per-scenario behavior (password rule, cache isolation) is supplied
 // via AuthConfig; see travel/v2/routes.ts for the first caller.
 const DEFAULT_TOKEN_TTL_SECONDS = 3600;
-const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 604800; // 7 days
 // Useful later for exercising expiry handling on the caller's side without waiting out a full
 // token TTL: a shortLived login still validates the same as any other, it just expires almost
 // immediately.
@@ -158,12 +157,12 @@ export function createAuthController(config: AuthConfig): AuthController {
 
     const ttlSeconds = shortLived ? SHORT_LIVED_TTL_SECONDS : tokenTtlSeconds;
     const accessToken = signJwt({ sub: username, type: 'access' }, ttlSeconds);
-    const refreshToken = signJwt({ sub: username, type: 'refresh' }, DEFAULT_REFRESH_TOKEN_TTL_SECONDS);
+    const refreshToken = signJwt({ sub: username, type: 'refresh' }, tokenTtlSeconds);
 
     // Recorded for parity with a real session store (and so an admin surface could list/revoke
     // active tokens later), but this is *not* what makes the token valid — see getUserBase.
     setCached(cacheKey(namespace, 'auth', 'token', accessToken), username, ttlSeconds);
-    setCached(cacheKey(namespace, 'auth', 'refresh_token', refreshToken), username, DEFAULT_REFRESH_TOKEN_TTL_SECONDS);
+    setCached(cacheKey(namespace, 'auth', 'refresh_token', refreshToken), username, tokenTtlSeconds);
     getOrCreateUser(username);
 
     logFlow({ reqId: request.id, flow: 'auth-login', step: 'issued', data: { namespace, username, shortLived } });

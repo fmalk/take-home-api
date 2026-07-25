@@ -7,7 +7,6 @@ import {
   baseListCitiesSchema,
   baseLoginSchema,
   baseUserSchema,
-  baseRefreshSchema,
   basePurchaseSchema,
   flightResultCoreProperties,
   roundTripSearchFlightsQuerystring,
@@ -23,12 +22,12 @@ import {
   type FlightIdParams,
   type PurchaseBody,
 } from './controller.js';
-import { createAuthController, type LoginBody, type RefreshBody } from '../../../core/auth.js';
+import { createAuthController, type LoginBody } from '../../../core/auth.js';
 import { servePostmanCollection } from '../../../utils/postman-handler.js';
 
 // Travel's credential rule for the shared login fixture (see core/auth.ts): password is
 // 'tr@vel' followed by the first 5 letters of the username.
-const { loginBase, refreshBase, getUserBase } = createAuthController({
+const { loginBase, getUserBase } = createAuthController({
   namespace: 'travel',
   passwordFor: (username) => `tr@vel${username.slice(0, 5)}`,
 });
@@ -190,8 +189,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     );
 
     scoped.post<{ Body: LoginBody }>('/api/travel/v2/login', { schema: loginSchema }, loginBase);
-
-    scoped.post<{ Body: RefreshBody }>('/api/travel/v2/refresh', { schema: baseRefreshSchema }, refreshBase);
 
     scoped.get('/api/travel/v2/user', { schema: userSchema }, getUserBase);
 
