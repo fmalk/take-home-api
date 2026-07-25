@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Scenario } from '../../../types.js';
 import { buildTravelEndpoints, buildAuthEndpoints, buildPurchaseEndpoints } from '../standard/openapi.js';
-import { v3LoginBodySchema } from './openapi.js';
+import { v3LoginBodySchema, v3PurchaseBodySchema } from './openapi.js';
 import { registerRoutes } from './routes.js';
 
 export const travelV3: Scenario = {
@@ -16,7 +16,7 @@ export const travelV3: Scenario = {
     return {
       ...buildTravelEndpoints('v3'),
       ...buildAuthEndpoints('v3', v3LoginBodySchema),
-      ...buildPurchaseEndpoints('v3'),
+      ...buildPurchaseEndpoints('v3', v3PurchaseBodySchema),
     };
   },
 };

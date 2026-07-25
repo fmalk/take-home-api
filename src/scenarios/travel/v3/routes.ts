@@ -11,7 +11,13 @@ import {
   flightResultCoreProperties,
   roundTripSearchFlightsQuerystring,
 } from '../standard/openapi.js';
-import { v3AirportSchema, v3FlightPricingItemSchema, v3RoutePricingItemSchema, v3LoginBodySchema } from './openapi.js';
+import {
+  v3AirportSchema,
+  v3FlightPricingItemSchema,
+  v3RoutePricingItemSchema,
+  v3LoginBodySchema,
+  v3PurchaseBodySchema,
+} from './openapi.js';
 import {
   searchFlights,
   getFlightDetail,
@@ -107,6 +113,7 @@ const userSchema = { ...baseUserSchema };
 // so it needs no override here.
 const purchaseSchema = {
   ...basePurchaseSchema,
+  body: v3PurchaseBodySchema,
   response: {
     200: {
       ...basePurchaseSchema.response[200],
