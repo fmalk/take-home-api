@@ -77,7 +77,7 @@ export interface PurchaseBody {
   outboundId: string;
   inboundId?: string;
   currency: string;
-  pricing: FlightSeatSelection[];
+  seats: FlightSeatSelection[];
 }
 
 export type PurchaseRequest = FastifyRequest<{ Body: PurchaseBody }>;
@@ -133,13 +133,12 @@ function validateSelection(selection: FlightSeatSelection, routes: Route[], curr
     );
   }
 
-  const informedPrice = selection.pricing[selection.seatClass];
-  if (informedPrice === undefined || Math.abs(actualPrice - informedPrice) > PRICE_TOLERANCE) {
+  if (Math.abs(actualPrice - selection.price) > PRICE_TOLERANCE) {
     throw new ApiError(
       400,
       'PRICE_MISMATCH',
       `Informed price for flight ${selection.flightId} (${selection.seatClass}) does not match the expected price ${actualPrice}`,
-      { expected: actualPrice, informed: informedPrice },
+      { expected: actualPrice, informed: selection.price },
     );
   }
 
@@ -153,7 +152,7 @@ export function createPurchase(
 ): (request: PurchaseRequest) => Promise<PurchaseResult> {
   return async function purchase(request: PurchaseRequest): Promise<PurchaseResult> {
     const user = await getUserBase(request);
-    const { outboundId, inboundId, currency, pricing } = request.body;
+    const { outboundId, inboundId, currency, seats } = request.body;
     const modeParam = request.body.mode?.toLowerCase();
 
     if (modeParam !== 'oneway' && modeParam !== 'roundtrip') {
@@ -194,13 +193,13 @@ export function createPurchase(
     const routes = inboundRoute ? [outboundRoute, inboundRoute] : [outboundRoute];
     const allFlightIds = new Set(routes.flatMap((r) => r.flights.map((f) => f.id)));
 
-    if (!Array.isArray(pricing) || pricing.length === 0) {
-      throw new ApiError(400, 'PRICING_REQUIRED', 'pricing must include one seat selection per flight');
+    if (!Array.isArray(seats) || seats.length === 0) {
+      throw new ApiError(400, 'SEATS_REQUIRED', 'seats must include one seat selection per flight');
     }
 
-    const selectedFlightIds = new Set(pricing.map((p) => p.flightId));
-    if (selectedFlightIds.size !== pricing.length) {
-      throw new ApiError(400, 'DUPLICATE_FLIGHT_SELECTION', 'pricing must include at most one selection per flight');
+    const selectedFlightIds = new Set(seats.map((s) => s.flightId));
+    if (selectedFlightIds.size !== seats.length) {
+      throw new ApiError(400, 'DUPLICATE_FLIGHT_SELECTION', 'seats must include at most one selection per flight');
     }
 
     for (const flightId of allFlightIds) {
@@ -218,9 +217,18 @@ export function createPurchase(
       }
     }
 
+    for (const selection of seats) {
+      if (selection.currency !== currency) {
+        throw new ApiError(
+          400,
+          'CURRENCY_MISMATCH',
+          `Seat selection for flight ${selection.flightId} is in currency ${selection.currency}, expected ${currency}`,
+        );
+      }
+    }
+
     const expectedTotal =
-      Math.round(pricing.reduce((sum, selection) => sum + validateSelection(selection, routes, currency), 0) * 100) /
-      100;
+      Math.round(seats.reduce((sum, selection) => sum + validateSelection(selection, routes, currency), 0) * 100) / 100;
 
     logFlow({
       reqId: request.id,

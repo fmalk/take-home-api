@@ -26,24 +26,25 @@ export const v3RoutePricingItemSchema = routePricingResultItemSchema;
 export const v3LoginBodySchema = loginBodySchema;
 
 // v3 is the first version to sell every seat individually: purchase drops the flat `price` in
-// favor of `pricing`, one FlightSeatSelection per flight (outbound + inbound) — see
+// favor of `seats`, one FlightSeatSelection per flight (outbound + inbound) — see
 // v3/types.ts's FlightSeatSelection and v3/controller.ts's purchase validation.
 const flightSeatSelectionSchema = {
   type: 'object',
-  required: ['flightId', 'seatClass', 'pricing'],
+  required: ['flightId', 'seatClass', 'currency', 'price'],
   properties: {
     flightId: { type: 'string', description: 'Flight ID this seat selection is for' },
     seatClass: { type: 'string', enum: ['regular', 'economy', 'businessClass', 'firstClass'] },
-    pricing: v3FlightPricingItemSchema,
+    currency: { type: 'string', description: 'Code for currency (three letters)' },
+    price: { type: 'number', description: 'Agreed price for this flight and seat class' },
   },
 };
 
 export const v3PurchaseBodySchema = {
   ...omitSchemaFields(purchaseBodySchema, ['price']),
-  required: ['mode', 'outboundId', 'currency', 'pricing'],
+  required: ['mode', 'outboundId', 'currency', 'seats'],
   properties: {
     ...omitSchemaFields(purchaseBodySchema, ['price']).properties,
-    pricing: {
+    seats: {
       type: 'array',
       description: 'One seat selection per flight across the outbound (and inbound, for RoundTrip) routes',
       items: flightSeatSelectionSchema,

@@ -1,4 +1,4 @@
-import type { Airport, Airline, FlightPricing } from '../standard/types.js';
+import type { Airport, Airline } from '../standard/types.js';
 import type { FormattedFlight, FormattedRoute } from '../standard/formatters.js';
 
 // v3 response shapes: same full-surface base as v2 (composed from the shared base
@@ -14,12 +14,13 @@ export type V3Route = Omit<FormattedRoute, 'flights' | 'price'> & {
 };
 
 // A single seat choice on the purchase request: identifies which flight the choice is for and
-// which seat class was picked, plus the FlightPricing the client saw when choosing (so the
+// which seat class was picked, plus the currency/price the client saw when choosing (so the
 // server can validate it still matches the stored flight's current pricing for that currency).
 export type SeatClass = 'regular' | 'economy' | 'businessClass' | 'firstClass';
 
 export interface FlightSeatSelection {
   flightId: string;
   seatClass: SeatClass;
-  pricing: FlightPricing;
+  currency: string;
+  price: number;
 }

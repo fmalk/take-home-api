@@ -111,10 +111,10 @@ describe('V3 Purchase (per-seat pricing)', () => {
   it('purchases a OneWay route by submitting one seat selection per flight', async () => {
     const route = await searchOneWayRoute();
 
-    const pricing = route.flights.map((flight) => {
+    const seats = route.flights.map((flight) => {
       const currencyPricing = flight.pricing.find((p) => p.currency === route.currency) as FlightPricingRow;
       const seatClass = pickSeatClass(currencyPricing);
-      return { flightId: flight.id, seatClass, pricing: currencyPricing };
+      return { flightId: flight.id, seatClass, currency: route.currency, price: currencyPricing[seatClass] };
     });
 
     const response = await app.inject({
@@ -125,7 +125,7 @@ describe('V3 Purchase (per-seat pricing)', () => {
         mode: 'OneWay',
         outboundId: route.id,
         currency: route.currency,
-        pricing,
+        seats,
       },
     });
 
@@ -156,7 +156,7 @@ describe('V3 Purchase (per-seat pricing)', () => {
         mode: 'OneWay',
         outboundId: route.id,
         currency: route.currency,
-        pricing: [{ flightId: firstFlight.id, seatClass, pricing: currencyPricing }],
+        seats: [{ flightId: firstFlight.id, seatClass, currency: route.currency, price: currencyPricing[seatClass] }],
       },
     });
 
@@ -168,13 +168,14 @@ describe('V3 Purchase (per-seat pricing)', () => {
   it('rejects a purchase where the submitted seat price does not match the stored flight price', async () => {
     const route = await searchOneWayRoute();
 
-    const pricing = route.flights.map((flight) => {
+    const seats = route.flights.map((flight) => {
       const currencyPricing = flight.pricing.find((p) => p.currency === route.currency) as FlightPricingRow;
       const seatClass = pickSeatClass(currencyPricing);
       return {
         flightId: flight.id,
         seatClass,
-        pricing: { ...currencyPricing, [seatClass]: (currencyPricing[seatClass] as number) + 9999 },
+        currency: route.currency,
+        price: (currencyPricing[seatClass] as number) + 9999,
       };
     });
 
@@ -186,7 +187,7 @@ describe('V3 Purchase (per-seat pricing)', () => {
         mode: 'OneWay',
         outboundId: route.id,
         currency: route.currency,
-        pricing,
+        seats,
       },
     });
 
