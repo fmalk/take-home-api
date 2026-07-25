@@ -1,0 +1,254 @@
+{
+  "info": {
+    "name": "Take Home API - Travel V4",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Swagger",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/swagger",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "swagger"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Postman",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/postman",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "postman"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Airports",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/airports",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "airports"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Cities",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/cities",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "cities"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"jsmith\",\n  \"password\": \"tr@veljsmit\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/login",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "User",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/user",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "user"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search (OneWay)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/search",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "search"],
+          "query": [
+            {
+              "key": "from",
+              "value": ""
+            },
+            {
+              "key": "to",
+              "value": ""
+            },
+            {
+              "key": "departureDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search (RoundTrip)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/search",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "search"],
+          "query": [
+            {
+              "key": "from",
+              "value": ""
+            },
+            {
+              "key": "to",
+              "value": ""
+            },
+            {
+              "key": "departureDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
+            },
+            {
+              "key": "mode",
+              "value": "RoundTrip"
+            },
+            {
+              "key": "returnDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Purchase (OneWay)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"OneWay\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
+        },
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/purchase",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "purchase"]
+        },
+        "description": "outboundRouteId and price come from a prior Search response's outbound route; route IDs expire ~5 minutes after the search."
+      },
+      "response": []
+    },
+    {
+      "name": "Purchase (RoundTrip)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"RoundTrip\",\n  \"outboundId\": \"{{outboundRouteId}}\",\n  \"inboundId\": \"{{inboundRouteId}}\",\n  \"currency\": \"USD\",\n  \"price\": 0\n}"
+        },
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/purchase",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "purchase"]
+        },
+        "description": "price must equal the sum of the outbound and inbound routes for the chosen currency."
+      },
+      "response": []
+    }
+  ]
+}
