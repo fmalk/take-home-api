@@ -13,3 +13,4 @@ coverage
 .idea
 nimbalyst-local
 project-history
+junit.xml
