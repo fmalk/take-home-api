@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.6](https://github.com/fmalk/take-home-api/compare/v0.5.5...v0.5.6) (2026-07-26)
+
+
+### Features
+
+* **auth:** implement OAuth refresh token endpoint ([f6513d1](https://github.com/fmalk/take-home-api/commit/f6513d190d131b3fb32f2d47f08834459d47ec85))
+* travel V4 ([f707b2d](https://github.com/fmalk/take-home-api/commit/f707b2df89843bf77d011395ea45856b10e4438b))
+* **travel-v4:** add search result pagination ([6e032a1](https://github.com/fmalk/take-home-api/commit/6e032a1acd402bd9d15a00deb463b25f5bceb6dd))
+* **travel-v4:** withhold one seat class per flight for near-term searches ([3d71218](https://github.com/fmalk/take-home-api/commit/3d71218a6d078dbbbea01439186bfef74139ad30))
+
+
+### Bug Fixes
+
+* **travel-v4:** recalculate flight/route available after seat-class trim ([2d86c55](https://github.com/fmalk/take-home-api/commit/2d86c55639aed04c4a6ded20e884eb3b3c87aac4))
+
 ## [0.5.5](https://github.com/fmalk/take-home-api/compare/v0.5.4...v0.5.5) (2026-07-25)
 
 ### Features
