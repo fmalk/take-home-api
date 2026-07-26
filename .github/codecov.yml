@@ -1,0 +1,6 @@
+codecov:
+  branch: main
+
+coverage:
+  round: nearest
+  range: "45..55"
