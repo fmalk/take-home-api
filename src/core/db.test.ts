@@ -72,11 +72,10 @@ describe('Database Module (db.ts) - Interfaces & Behavior', () => {
     });
 
     it('allows similar database names with different suffixes', () => {
-      const db1 = 'travel';
-      const db2 = 'travel_backup';
+      const db1: string = 'travel';
+      const db2: string = 'travel_backup';
 
       expect(db1).not.toBe(db2);
-      expect(db1 !== db2).toBe(true);
     });
   });
 

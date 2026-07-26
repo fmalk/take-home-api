@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url';
 // Note: Most functions are not exported, so we'll test through module loads
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TRAVEL_DIR = path.resolve(__dirname, '..');
 
 describe('CSV parsing', () => {
   describe('parseCsv - basic functionality', () => {
