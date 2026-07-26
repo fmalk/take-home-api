@@ -42,12 +42,24 @@ export interface LoginBody {
 // OAuth-standard field names (RFC 6749 section 5.1), unlike the rest of this API's camelCase JSON.
 export interface LoginResult {
   access_token: string;
+  refresh_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+}
+
+export interface RefreshBody {
+  refresh_token: string;
+}
+
+export interface RefreshResult {
+  access_token: string;
   token_type: 'Bearer';
   expires_in: number;
 }
 
 export type LoginRequest = FastifyRequest<{ Body: LoginBody }>;
 export type UserRequest = FastifyRequest;
+export type RefreshRequest = FastifyRequest<{ Body: RefreshBody }>;
 
 function hashUsername(username: string): number {
   let hash = 0;
@@ -99,6 +111,7 @@ function guessFullName(username: string): string {
 
 export interface AuthController {
   loginBase(request: LoginRequest): Promise<LoginResult>;
+  refreshBase(request: RefreshRequest): Promise<RefreshResult>;
   getUserBase(request: UserRequest): Promise<AuthUser>;
 }
 
@@ -143,15 +156,54 @@ export function createAuthController(config: AuthConfig): AuthController {
     }
 
     const ttlSeconds = shortLived ? SHORT_LIVED_TTL_SECONDS : tokenTtlSeconds;
-    const accessToken = signJwt({ sub: username }, ttlSeconds);
+    const accessToken = signJwt({ sub: username, type: 'access' }, ttlSeconds);
+    const refreshToken = signJwt({ sub: username, type: 'refresh' }, tokenTtlSeconds);
+
     // Recorded for parity with a real session store (and so an admin surface could list/revoke
     // active tokens later), but this is *not* what makes the token valid — see getUserBase.
     setCached(cacheKey(namespace, 'auth', 'token', accessToken), username, ttlSeconds);
+    setCached(cacheKey(namespace, 'auth', 'refresh_token', refreshToken), username, tokenTtlSeconds);
     getOrCreateUser(username);
 
     logFlow({ reqId: request.id, flow: 'auth-login', step: 'issued', data: { namespace, username, shortLived } });
 
-    return { access_token: accessToken, token_type: 'Bearer', expires_in: ttlSeconds };
+    return { access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: ttlSeconds };
+  }
+
+  async function refreshBase(request: RefreshRequest): Promise<RefreshResult> {
+    const { refresh_token } = request.body;
+
+    // Verify the refresh token's signature and expiry
+    const claims = refresh_token ? verifyJwt(refresh_token) : null;
+
+    if (!claims || claims.type !== 'refresh') {
+      logFlow({
+        reqId: request.id,
+        flow: 'auth-refresh',
+        step: 'rejected',
+        data: { namespace, reason: 'invalid_token' },
+      });
+      throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token');
+    }
+
+    const username = typeof claims.sub === 'string' ? claims.sub : undefined;
+    if (!username) {
+      logFlow({
+        reqId: request.id,
+        flow: 'auth-refresh',
+        step: 'rejected',
+        data: { namespace, reason: 'missing_subject' },
+      });
+      throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
+    }
+
+    // Issue a new access token
+    const newAccessToken = signJwt({ sub: username, type: 'access' }, tokenTtlSeconds);
+    setCached(cacheKey(namespace, 'auth', 'token', newAccessToken), username, tokenTtlSeconds);
+
+    logFlow({ reqId: request.id, flow: 'auth-refresh', step: 'issued', data: { namespace, username } });
+
+    return { access_token: newAccessToken, token_type: 'Bearer', expires_in: tokenTtlSeconds };
   }
 
   async function getUserBase(request: UserRequest): Promise<AuthUser> {
@@ -173,5 +225,5 @@ export function createAuthController(config: AuthConfig): AuthController {
     return getOrCreateUser(username);
   }
 
-  return { loginBase, getUserBase };
+  return { loginBase, refreshBase, getUserBase };
 }

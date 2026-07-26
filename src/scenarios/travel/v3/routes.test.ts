@@ -83,6 +83,91 @@ function pickSeatClass(currencyPricing: FlightPricingRow): string {
   ) as string;
 }
 
+describe('V3 Auth - Token Refresh', () => {
+  it('login returns both access_token and refresh_token', async () => {
+    const username = 'token';
+    const loginResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v3/login',
+      payload: { username, password: `tr@vel${username.slice(0, 5)}` },
+    });
+
+    expect(loginResponse.statusCode).toBe(200);
+    const body = JSON.parse(loginResponse.body);
+    expect(body).toHaveProperty('access_token');
+    expect(body).toHaveProperty('refresh_token');
+    expect(body).toHaveProperty('token_type', 'Bearer');
+    expect(body).toHaveProperty('expires_in');
+    expect(typeof body.access_token).toBe('string');
+    expect(typeof body.refresh_token).toBe('string');
+  });
+
+  it('refresh endpoint issues a new access_token using refresh_token', async () => {
+    const username = 'fresh';
+    const loginResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v3/login',
+      payload: { username, password: `tr@vel${username.slice(0, 5)}` },
+    });
+
+    const { refresh_token } = JSON.parse(loginResponse.body);
+
+    const refreshResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v3/refresh',
+      payload: { refresh_token },
+    });
+
+    expect(refreshResponse.statusCode).toBe(200);
+    const body = JSON.parse(refreshResponse.body);
+    expect(body).toHaveProperty('access_token');
+    expect(body).toHaveProperty('token_type', 'Bearer');
+    expect(body).toHaveProperty('expires_in');
+    expect(typeof body.access_token).toBe('string');
+  });
+
+  it('refresh endpoint rejects invalid refresh_token', async () => {
+    const refreshResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v3/refresh',
+      payload: { refresh_token: 'invalid.token.here' },
+    });
+
+    expect(refreshResponse.statusCode).toBe(401);
+    const body = JSON.parse(refreshResponse.body);
+    expect(body.code).toBe('INVALID_REFRESH_TOKEN');
+  });
+
+  it('refreshed access_token can be used to access protected endpoints', async () => {
+    const username = 'renew';
+    const loginResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v3/login',
+      payload: { username, password: `tr@vel${username.slice(0, 5)}` },
+    });
+
+    const { refresh_token } = JSON.parse(loginResponse.body);
+
+    const refreshResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v3/refresh',
+      payload: { refresh_token },
+    });
+
+    const { access_token } = JSON.parse(refreshResponse.body);
+
+    const userResponse = await app.inject({
+      method: 'GET',
+      url: '/api/travel/v3/user',
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(userResponse.statusCode).toBe(200);
+    const body = JSON.parse(userResponse.body);
+    expect(body.username).toBe(username);
+  });
+});
+
 describe('V3 Purchase (per-seat pricing)', () => {
   let token: string;
 

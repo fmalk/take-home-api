@@ -13,11 +13,13 @@ import {
   roundTripSearchFlightsQuerystring,
 } from '../standard/openapi.js';
 import {
-  v3AirportSchema,
-  v3FlightPricingItemSchema,
-  v3RoutePricingItemSchema,
-  v3LoginBodySchema,
-  v3PurchaseBodySchema,
+  v4AirportSchema,
+  v4FlightPricingItemSchema,
+  v4RoutePricingItemSchema,
+  v4LoginBodySchema,
+  v4PurchaseBodySchema,
+  v4SearchPaginationProperties,
+  v4SearchPagesQuerystring,
 } from './openapi.js';
 import {
   searchFlights,
@@ -25,10 +27,12 @@ import {
   listAirports,
   listCities,
   createPurchase,
+  getSearchPage,
   type SearchFlightsQuery,
   type FlightIdParams,
   type PurchaseBody,
 } from './controller.js';
+import type { SearchPagesQuery } from './types.js';
 import { createAuthController, type LoginBody, type RefreshBody } from '../../../core/auth.js';
 import { servePostmanCollection } from '../../../utils/postman-handler.js';
 
@@ -41,12 +45,11 @@ const { loginBase, refreshBase, getUserBase } = createAuthController({
 
 const purchase = createPurchase(getUserBase);
 
-// v3 is the first version to expose every seat class an airline offers (regular/economy/
-// businessClass/firstClass) — see v3/controller.ts's toV3Flight, which unlike v2 does not
-// filter the `pricing` array down to `regular`.
+// v4 exposes every seat class an airline offers (regular/economy/businessClass/firstClass) —
+// see v4/controller.ts's toV4Flight, which does not filter the `pricing` array down to `regular`.
 const flightResultSchema = {
   type: 'object',
-  properties: { ...flightResultCoreProperties, pricing: { type: 'array', items: v3FlightPricingItemSchema } },
+  properties: { ...flightResultCoreProperties, pricing: { type: 'array', items: v4FlightPricingItemSchema } },
 };
 
 const routeResultSchema = {
@@ -62,11 +65,11 @@ const routeResultSchema = {
       items: flightResultSchema,
     },
     available: { type: 'number' },
-    pricing: { type: 'array', items: v3RoutePricingItemSchema },
+    pricing: { type: 'array', items: v4RoutePricingItemSchema },
   },
 };
 
-// v3 accepts `mode`/`returnDate` for RoundTrip searches, same as v2, and its response carries
+// v4 accepts `mode`/`returnDate` for RoundTrip searches, same as v3, and its response carries
 // the RoundTrip's `inbound` leg alongside `outbound`.
 const searchFlightsSchema = {
   ...baseSearchFlightsSchema,
@@ -78,6 +81,25 @@ const searchFlightsSchema = {
         ...baseSearchFlightsSchema.response[200].properties,
         returnDate: { type: 'string' },
         outbound: { type: 'array', items: routeResultSchema },
+        inbound: { type: 'array', items: routeResultSchema },
+        ...v4SearchPaginationProperties,
+      },
+    },
+  },
+};
+
+// Paginated follow-up to /search: given a prior search's id, returns just the requested page
+// (<=15 routes, see v4/types.ts's SEARCH_PAGE_SIZE) of its outbound and/or inbound routes.
+const searchPagesSchema = {
+  querystring: v4SearchPagesQuerystring,
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        outboundPage: { type: 'number' },
+        outbound: { type: 'array', items: routeResultSchema },
+        inboundPage: { type: 'number' },
         inbound: { type: 'array', items: routeResultSchema },
       },
     },
@@ -91,30 +113,30 @@ const flightDetailSchema = {
   },
 };
 
-// v3 airports keep the full shape, so the response schema swaps in the untrimmed item schema.
+// v4 airports keep the full shape, so the response schema swaps in the untrimmed item schema.
 const listAirportsSchema = {
   ...baseListAirportsSchema,
   response: {
     200: {
       ...baseListAirportsSchema.response[200],
       properties: {
-        airports: { type: 'array', items: v3AirportSchema },
+        airports: { type: 'array', items: v4AirportSchema },
       },
     },
   },
 };
 const listCitiesSchema = { ...baseListCitiesSchema };
-// v3 is the first version to expose `shortLived` (see v3LoginBodySchema).
-const loginSchema = { ...baseLoginSchema, body: v3LoginBodySchema };
+// v4 exposes `shortLived` (see v4LoginBodySchema).
+const loginSchema = { ...baseLoginSchema, body: v4LoginBodySchema };
 const userSchema = { ...baseUserSchema };
 
-// v3's purchase response carries the same per-currency `pricing` breakdown as its search/detail
+// v4's purchase response carries the same per-currency `pricing` breakdown as its search/detail
 // routes, so it swaps in this file's routeResultSchema for the base's flat-`price` version; the
 // `user` shape is already the full AuthUser surface (basePurchaseSchema's userResponseSchema),
 // so it needs no override here.
 const purchaseSchema = {
   ...basePurchaseSchema,
-  body: v3PurchaseBodySchema,
+  body: v4PurchaseBodySchema,
   response: {
     200: {
       ...basePurchaseSchema.response[200],
@@ -132,26 +154,26 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // to this version — registering it twice at root would collide across scenario versions.
   await app.register(async (scoped) => {
     await scoped.register(fastifySwaggerUi, {
-      routePrefix: '/api/travel/v3/swagger',
+      routePrefix: '/api/travel/v4/swagger',
       uiConfig: {
         deepLinking: true,
       },
     });
 
     scoped.get(
-      '/api/travel/v3/postman',
+      '/api/travel/v4/postman',
       {
         onSend: async (_request, reply) => {
           reply.header('Cache-Control', 'public, max-age=86400');
         },
       },
       async (request, reply) => {
-        await servePostmanCollection('travel/v3', request, reply);
+        await servePostmanCollection('travel/v4', request, reply);
       },
     );
 
     scoped.get<{ Querystring: SearchFlightsQuery }>(
-      '/api/travel/v3/search',
+      '/api/travel/v4/search',
       {
         schema: searchFlightsSchema,
         onSend: async (_request, reply) => {
@@ -162,8 +184,20 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       searchFlights,
     );
 
+    scoped.get<{ Querystring: SearchPagesQuery }>(
+      '/api/travel/v4/search/pages',
+      {
+        schema: searchPagesSchema,
+        onSend: async (_request, reply) => {
+          // Same TTL as the underlying search's stored routes (instance store TTL = 5 min).
+          reply.header('Cache-Control', 'public, max-age=270');
+        },
+      },
+      getSearchPage,
+    );
+
     scoped.get<{ Params: FlightIdParams }>(
-      '/api/travel/v3/flights/:id',
+      '/api/travel/v4/flights/:id',
       {
         schema: flightDetailSchema,
         onSend: async (_request, reply) => {
@@ -175,7 +209,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     );
 
     scoped.get(
-      '/api/travel/v3/airports',
+      '/api/travel/v4/airports',
       {
         schema: listAirportsSchema,
         onSend: async (_request, reply) => {
@@ -186,7 +220,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     );
 
     scoped.get(
-      '/api/travel/v3/cities',
+      '/api/travel/v4/cities',
       {
         schema: listCitiesSchema,
         onSend: async (_request, reply) => {
@@ -196,12 +230,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       listCities,
     );
 
-    scoped.post<{ Body: LoginBody }>('/api/travel/v3/login', { schema: loginSchema }, loginBase);
+    scoped.post<{ Body: LoginBody }>('/api/travel/v4/login', { schema: loginSchema }, loginBase);
 
-    scoped.post<{ Body: RefreshBody }>('/api/travel/v3/refresh', { schema: baseRefreshSchema }, refreshBase);
+    scoped.post<{ Body: RefreshBody }>('/api/travel/v4/refresh', { schema: baseRefreshSchema }, refreshBase);
 
-    scoped.get('/api/travel/v3/user', { schema: userSchema }, getUserBase);
+    scoped.get('/api/travel/v4/user', { schema: userSchema }, getUserBase);
 
-    scoped.post<{ Body: PurchaseBody }>('/api/travel/v3/purchase', { schema: purchaseSchema }, purchase);
+    scoped.post<{ Body: PurchaseBody }>('/api/travel/v4/purchase', { schema: purchaseSchema }, purchase);
   });
 }
