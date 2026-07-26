@@ -162,6 +162,10 @@ src/
 - Write unit tests for utilities and business logic
 - Use integration tests for component interactions
 - Follow AAA pattern (Arrange, Act, Assert)
+- **Limitation**: Jest's ESM support doesn't allow `jest.mock()` at module level, making it impossible to fully mock `fs` and `sql.js` before the module imports.
+  - This means we can't easily create isolated unit tests that actually call the real functions.
+  - Don't try to circumvent this limitation, we are not changing ESM.
+  - This limitation on test coverage is acceptable.
 
 ## Performance Optimization
 

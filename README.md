@@ -32,7 +32,7 @@ We would use those as input to Take Home Coding challenges. We were a mobile-foc
 2. **Learn how a REST API works** by following real use-case flows.
 3. **Write integration tests** against a live, realistic target.
 4. **Take Home assessments**: go to /docs to check how to use the API.
-5. *Near-Future*: use the provided MCP server for your AI agents.
+5. _Near-Future_: use the provided MCP server for your AI agents.
 
 Inspirations
 

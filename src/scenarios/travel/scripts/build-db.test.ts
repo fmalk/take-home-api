@@ -281,11 +281,7 @@ describe('Airline headquarters determination', () => {
 
 describe('Connected components in hub network', () => {
   it('identifies single connected component', () => {
-    const hubs = [
-      { iata: 'A' },
-      { iata: 'B' },
-      { iata: 'C' },
-    ] as any;
+    const hubs = [{ iata: 'A' }, { iata: 'B' }, { iata: 'C' }] as any;
 
     const adjacency = new Map<string, Set<string>>([
       ['A', new Set(['B'])],
@@ -300,12 +296,7 @@ describe('Connected components in hub network', () => {
   });
 
   it('identifies multiple disconnected components', () => {
-    const hubs = [
-      { iata: 'A' },
-      { iata: 'B' },
-      { iata: 'C' },
-      { iata: 'D' },
-    ] as any;
+    const hubs = [{ iata: 'A' }, { iata: 'B' }, { iata: 'C' }, { iata: 'D' }] as any;
 
     const adjacency = new Map<string, Set<string>>([
       ['A', new Set(['B'])],
@@ -322,13 +313,7 @@ describe('Connected components in hub network', () => {
   });
 
   it('sorts components by size (largest first)', () => {
-    const hubs = [
-      { iata: 'A' },
-      { iata: 'B' },
-      { iata: 'C' },
-      { iata: 'D' },
-      { iata: 'E' },
-    ] as any;
+    const hubs = [{ iata: 'A' }, { iata: 'B' }, { iata: 'C' }, { iata: 'D' }, { iata: 'E' }] as any;
 
     const adjacency = new Map<string, Set<string>>([
       ['A', new Set(['B', 'C'])],
@@ -345,10 +330,7 @@ describe('Connected components in hub network', () => {
   });
 
   it('handles isolated hubs (no connections)', () => {
-    const hubs = [
-      { iata: 'A' },
-      { iata: 'B' },
-    ] as any;
+    const hubs = [{ iata: 'A' }, { iata: 'B' }] as any;
 
     const adjacency = new Map<string, Set<string>>([
       ['A', new Set()],
@@ -402,10 +384,7 @@ function parseSimpleCSV(content: string): string[][] {
   return rows;
 }
 
-function haversineDistance(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
+function haversineDistance(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const EARTH_RADIUS_KM = 6371;
   const toRad = (deg: number): number => (deg * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
@@ -425,11 +404,7 @@ function levenshteinDistance(a: string, b: string): number {
   for (let i = 1; i < rows; i++) {
     for (let j = 1; j < cols; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      distances[i][j] = Math.min(
-        distances[i - 1][j] + 1,
-        distances[i][j - 1] + 1,
-        distances[i - 1][j - 1] + cost,
-      );
+      distances[i][j] = Math.min(distances[i - 1][j] + 1, distances[i][j - 1] + 1, distances[i - 1][j - 1] + cost);
     }
   }
 
