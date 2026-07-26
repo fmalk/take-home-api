@@ -13,12 +13,13 @@ import {
   type FlightDetailRequest,
   type SearchMode,
 } from '../standard/controller.js';
-import { getStoredRoute } from '../standard/instance-store.js';
+import { getStoredRoute, storeSearchResults, getStoredSearchResults } from '../standard/instance-store.js';
 import { logFlow } from '../../../core/logger.js';
 import type { FormattedFlight, FormattedRoute } from '../standard/formatters.js';
 import { formatRoute } from '../standard/formatters.js';
 import type { Airport, City, Route, Flight } from '../standard/types.js';
-import type { V4Airport, V4Flight, V4Route, FlightSeatSelection } from './types.js';
+import type { V4Airport, V4Flight, V4Route, FlightSeatSelection, SearchPagesQuery } from './types.js';
+import { SEARCH_PAGE_SIZE } from './types.js';
 
 export type { SearchFlightsQuery, FlightIdParams, SearchFlightsRequest, FlightDetailRequest };
 
@@ -50,11 +51,25 @@ export interface SearchFlightsResult extends Omit<SearchFlightsQuery, 'mode'> {
   id: string;
   mode: 'OneWay' | 'RoundTrip';
   outbound: V4Route[];
+  outboundCurrentPage: number;
+  outboundTotalPages: number;
   inbound?: V4Route[];
+  inboundCurrentPage?: number;
+  inboundTotalPages?: number;
+}
+
+function totalPages(count: number): number {
+  return Math.max(1, Math.ceil(count / SEARCH_PAGE_SIZE));
 }
 
 export async function searchFlights(request: SearchFlightsRequest): Promise<SearchFlightsResult> {
   const { from, to, departureDate, returnDate, id, mode, outbound, inbound } = await searchFlightsBase(request);
+
+  // Route/Flight instances (formatRoute's source) are only resolvable by ID for the instance
+  // store TTL, same window /search/pages needs to still be able to slice a later page — so the
+  // full route lists are stashed here, keyed by this search's own id, rather than re-derived.
+  storeSearchResults(id, { outbound, inbound });
+
   return {
     from,
     to,
@@ -62,8 +77,70 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
     returnDate,
     id,
     mode,
-    outbound: outbound.map(toV4Route),
-    inbound: inbound?.map(toV4Route),
+    outbound: outbound.slice(0, SEARCH_PAGE_SIZE).map(toV4Route),
+    outboundCurrentPage: 1,
+    outboundTotalPages: totalPages(outbound.length),
+    inbound: inbound ? inbound.slice(0, SEARCH_PAGE_SIZE).map(toV4Route) : undefined,
+    inboundCurrentPage: inbound ? 1 : undefined,
+    inboundTotalPages: inbound ? totalPages(inbound.length) : undefined,
+  };
+}
+
+export type SearchPagesRequest = FastifyRequest<{ Querystring: SearchPagesQuery }>;
+
+export interface SearchPagesResult {
+  id: string;
+  outboundPage?: number;
+  outbound?: V4Route[];
+  inboundPage?: number;
+  inbound?: V4Route[];
+}
+
+function parsePageParam(name: string, value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const page = Number(value);
+  if (!Number.isInteger(page) || page < 1) {
+    throw new ApiError(400, 'INVALID_PAGE', `${name} must be a positive integer`);
+  }
+  return page;
+}
+
+function pageSlice(routes: FormattedRoute[], page: number, legName: string): V4Route[] {
+  const total = totalPages(routes.length);
+  if (page > total) {
+    throw new ApiError(400, 'PAGE_EXCEEDED', `${legName}Page ${page} exceeds the available ${total} page(s)`);
+  }
+  return routes.slice((page - 1) * SEARCH_PAGE_SIZE, page * SEARCH_PAGE_SIZE).map(toV4Route);
+}
+
+export async function getSearchPage(request: SearchPagesRequest): Promise<SearchPagesResult> {
+  const { id, outboundPage: outboundPageParam, inboundPage: inboundPageParam } = request.query;
+
+  const outboundPage = parsePageParam('outbound', outboundPageParam);
+  const inboundPage = parsePageParam('inbound', inboundPageParam);
+
+  if (outboundPage === undefined && inboundPage === undefined) {
+    throw new ApiError(400, 'PAGE_REQUIRED', 'outboundPage or inboundPage is required');
+  }
+
+  const stored = getStoredSearchResults(id);
+  if (!stored) {
+    throw new ApiError(404, 'SEARCH_NOT_FOUND', `Search ${id} not found or expired`);
+  }
+
+  if (inboundPage !== undefined && !stored.inbound) {
+    throw new ApiError(400, 'NO_INBOUND', `Search ${id} has no inbound leg`);
+  }
+
+  logFlow({ reqId: request.id, flow: 'search-pages', step: 'lookup', data: { id, outboundPage, inboundPage } });
+
+  return {
+    id,
+    outboundPage,
+    outbound: outboundPage !== undefined ? pageSlice(stored.outbound, outboundPage, 'outbound') : undefined,
+    inboundPage,
+    inbound:
+      inboundPage !== undefined ? pageSlice(stored.inbound as FormattedRoute[], inboundPage, 'inbound') : undefined,
   };
 }
 

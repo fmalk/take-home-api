@@ -17,6 +17,43 @@ export const travelV4: Scenario = {
       ...buildTravelEndpoints('v4'),
       ...buildAuthEndpoints('v4', v4LoginBodySchema),
       ...buildPurchaseEndpoints('v4', v4PurchaseBodySchema),
+      // Paginated follow-up to /search (see v4/routes.ts's searchPagesSchema): given a prior
+      // search's id, returns just the requested page (<=15 routes) of outbound/inbound routes.
+      '/api/travel/v4/search/pages': {
+        get: {
+          summary: 'Get a page of search results',
+          description: 'Fetch a specific page (15 routes per page) of a prior search’s outbound and/or inbound routes',
+          tags: [],
+          parameters: [
+            {
+              name: 'id',
+              in: 'query',
+              description: 'Search ID returned by GET /search',
+              required: true,
+              schema: { type: 'string' },
+            },
+            {
+              name: 'outboundPage',
+              in: 'query',
+              description: 'Page number (1-based) of outbound routes to fetch',
+              required: false,
+              schema: { type: 'string' },
+            },
+            {
+              name: 'inboundPage',
+              in: 'query',
+              description: 'Page number (1-based) of inbound routes to fetch',
+              required: false,
+              schema: { type: 'string' },
+            },
+          ],
+          responses: {
+            '200': { description: 'Requested page(s) of routes' },
+            '400': { description: 'Missing page params, invalid page number, page exceeded, or no inbound leg' },
+            '404': { description: 'Search not found or expired' },
+          },
+        },
+      },
     };
   },
 };

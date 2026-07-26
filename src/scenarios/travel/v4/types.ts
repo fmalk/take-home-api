@@ -23,3 +23,14 @@ export interface FlightSeatSelection {
   currency: string;
   price: number;
 }
+
+// v4 search results are paginated at PAGE_SIZE routes per leg (see v4/controller.ts); the search
+// response only ever carries the first page, plus enough metadata (current/total pages, per leg)
+// for a client to walk the rest via GET /search/pages.
+export const SEARCH_PAGE_SIZE = 15;
+
+export interface SearchPagesQuery {
+  id: string;
+  outboundPage?: string;
+  inboundPage?: string;
+}

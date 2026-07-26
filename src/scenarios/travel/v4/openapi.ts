@@ -44,3 +44,23 @@ export const v4PurchaseBodySchema = {
     },
   },
 };
+
+// v4 paginates search results at 15 routes per leg (see v4/types.ts's SEARCH_PAGE_SIZE); the
+// search response's outbound/inbound arrays only ever carry the current page, alongside these
+// current/total page counts so a client knows whether to walk /search/pages for more.
+export const v4SearchPaginationProperties = {
+  outboundCurrentPage: { type: 'number', description: 'Current page (1-based) of the outbound routes returned' },
+  outboundTotalPages: { type: 'number', description: 'Total number of outbound pages available' },
+  inboundCurrentPage: { type: 'number', description: 'Current page (1-based) of the inbound routes returned' },
+  inboundTotalPages: { type: 'number', description: 'Total number of inbound pages available' },
+};
+
+export const v4SearchPagesQuerystring = {
+  type: 'object',
+  required: ['id'],
+  properties: {
+    id: { type: 'string', description: 'Search ID returned by GET /search' },
+    outboundPage: { type: 'string', description: 'Page number (1-based) of outbound routes to fetch' },
+    inboundPage: { type: 'string', description: 'Page number (1-based) of inbound routes to fetch' },
+  },
+};

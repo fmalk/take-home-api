@@ -193,6 +193,39 @@
       "response": []
     },
     {
+      "name": "Search Pages",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:{{port}}/api/travel/v4/search/pages",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "{{port}}",
+          "path": ["api", "travel", "v4", "search", "pages"],
+          "query": [
+            {
+              "key": "id",
+              "value": "",
+              "description": "Search ID returned by GET /search"
+            },
+            {
+              "key": "outboundPage",
+              "value": "2",
+              "description": "Page number (1-based) of outbound routes to fetch"
+            },
+            {
+              "key": "inboundPage",
+              "value": "",
+              "description": "Page number (1-based) of inbound routes to fetch"
+            }
+          ]
+        },
+        "description": "Fetch a specific page (15 routes per page) of a prior search's outbound and/or inbound routes."
+      },
+      "response": []
+    },
+    {
       "name": "Purchase (OneWay)",
       "request": {
         "method": "POST",

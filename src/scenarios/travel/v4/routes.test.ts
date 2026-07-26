@@ -16,7 +16,7 @@ afterAll(async () => {
 });
 
 describe('V4 Flight Search', () => {
-  it('caps HKG->LAX search at 50 routes (regression for route explosion)', async () => {
+  it('caps HKG->LAX search at 50 routes across pages, 15 per page (regression for route explosion)', async () => {
     // Current date is 2026-07-24, 6 months ahead = 2027-01-24
     const departureDate = '2027-01-24';
 
@@ -29,12 +29,91 @@ describe('V4 Flight Search', () => {
     const body = JSON.parse(response.body);
 
     // The cartesian product of airlines across multiple hub-to-hub paths generates
-    // well over 100 possible routes; MAX_PRESENTED_ROUTES caps at 50.
+    // well over 100 possible routes; MAX_PRESENTED_ROUTES caps at 50, paginated 15 per page.
     expect(body.outbound).toBeDefined();
-    expect(body.outbound.length).toBe(50);
+    expect(body.outbound.length).toBe(15);
+    expect(body.outboundCurrentPage).toBe(1);
+    expect(body.outboundTotalPages).toBe(4);
     expect(body.outbound[0]).toHaveProperty('id');
     expect(body.outbound[0]).toHaveProperty('departure');
     expect(body.outbound[0]).toHaveProperty('arrival');
+  });
+
+  it('walks all pages of a search via /search/pages, covering the full 50-route set', async () => {
+    const departureDate = '2027-01-24';
+
+    const searchResponse = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const searchBody = JSON.parse(searchResponse.body);
+
+    const allRouteIds = new Set<string>(searchBody.outbound.map((route: { id: string }) => route.id));
+
+    for (let page = 2; page <= searchBody.outboundTotalPages; page++) {
+      const pageResponse = await app.inject({
+        method: 'GET',
+        url: `/api/travel/v4/search/pages?id=${searchBody.id}&outboundPage=${page}`,
+      });
+
+      expect(pageResponse.statusCode).toBe(200);
+      const pageBody = JSON.parse(pageResponse.body);
+      expect(pageBody.outboundPage).toBe(page);
+      expect(pageBody.outbound.length).toBeGreaterThan(0);
+      expect(pageBody.outbound.length).toBeLessThanOrEqual(15);
+      for (const route of pageBody.outbound) allRouteIds.add(route.id);
+    }
+
+    expect(allRouteIds.size).toBe(50);
+  });
+
+  it('rejects a page number beyond the available pages with a 400', async () => {
+    const departureDate = '2027-01-24';
+
+    const searchResponse = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const searchBody = JSON.parse(searchResponse.body);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search/pages?id=${searchBody.id}&outboundPage=${searchBody.outboundTotalPages + 1}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body);
+    expect(body.code).toBe('PAGE_EXCEEDED');
+  });
+
+  it('returns 404 for an unknown or expired search id', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/travel/v4/search/pages?id=not-a-real-search-id&outboundPage=1',
+    });
+
+    expect(response.statusCode).toBe(404);
+    const body = JSON.parse(response.body);
+    expect(body.code).toBe('SEARCH_NOT_FOUND');
+  });
+
+  it('rejects a search/pages call missing both outboundPage and inboundPage', async () => {
+    const departureDate = '2027-01-24';
+
+    const searchResponse = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const searchBody = JSON.parse(searchResponse.body);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search/pages?id=${searchBody.id}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body);
+    expect(body.code).toBe('PAGE_REQUIRED');
   });
 
   it('exposes every seat class a flight offers, unlike v2 which only shows regular', async () => {

@@ -18,6 +18,8 @@ import {
   v4RoutePricingItemSchema,
   v4LoginBodySchema,
   v4PurchaseBodySchema,
+  v4SearchPaginationProperties,
+  v4SearchPagesQuerystring,
 } from './openapi.js';
 import {
   searchFlights,
@@ -25,10 +27,12 @@ import {
   listAirports,
   listCities,
   createPurchase,
+  getSearchPage,
   type SearchFlightsQuery,
   type FlightIdParams,
   type PurchaseBody,
 } from './controller.js';
+import type { SearchPagesQuery } from './types.js';
 import { createAuthController, type LoginBody, type RefreshBody } from '../../../core/auth.js';
 import { servePostmanCollection } from '../../../utils/postman-handler.js';
 
@@ -77,6 +81,25 @@ const searchFlightsSchema = {
         ...baseSearchFlightsSchema.response[200].properties,
         returnDate: { type: 'string' },
         outbound: { type: 'array', items: routeResultSchema },
+        inbound: { type: 'array', items: routeResultSchema },
+        ...v4SearchPaginationProperties,
+      },
+    },
+  },
+};
+
+// Paginated follow-up to /search: given a prior search's id, returns just the requested page
+// (<=15 routes, see v4/types.ts's SEARCH_PAGE_SIZE) of its outbound and/or inbound routes.
+const searchPagesSchema = {
+  querystring: v4SearchPagesQuerystring,
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        outboundPage: { type: 'number' },
+        outbound: { type: 'array', items: routeResultSchema },
+        inboundPage: { type: 'number' },
         inbound: { type: 'array', items: routeResultSchema },
       },
     },
@@ -159,6 +182,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         },
       },
       searchFlights,
+    );
+
+    scoped.get<{ Querystring: SearchPagesQuery }>(
+      '/api/travel/v4/search/pages',
+      {
+        schema: searchPagesSchema,
+        onSend: async (_request, reply) => {
+          // Same TTL as the underlying search's stored routes (instance store TTL = 5 min).
+          reply.header('Cache-Control', 'public, max-age=270');
+        },
+      },
+      getSearchPage,
     );
 
     scoped.get<{ Params: FlightIdParams }>(
