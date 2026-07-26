@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.7](https://github.com/fmalk/take-home-api/compare/v0.5.6...v0.5.7) (2026-07-26)
+
+
+### Features
+
+* **travel:** add Loyalty Points (LOY) currency to v4 (TAK-28) ([aa15c22](https://github.com/fmalk/take-home-api/commit/aa15c22a76e6c22ecc7cbb77117d426056167678))
+
+
+### Bug Fixes
+
+* **test:** resolve pre-existing typecheck errors in test files ([231fdb6](https://github.com/fmalk/take-home-api/commit/231fdb643926312526ec1a46467d8ec1dfc0d462))
+
 ## [0.5.6](https://github.com/fmalk/take-home-api/compare/v0.5.5...v0.5.6) (2026-07-26)
 
 
