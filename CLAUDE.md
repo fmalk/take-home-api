@@ -158,7 +158,8 @@ src/
 
 ### Testing Standards
 
-- Aim for 80%+ test coverage
+- Aim for 50%+ test coverage
+  - Code with `fs` and SQLite are hard to count as covered, but tests exist
 - Write unit tests for utilities and business logic
 - Use integration tests for component interactions
 - Follow AAA pattern (Arrange, Act, Assert)
@@ -236,7 +237,7 @@ Every commit subject line must start with a Conventional Commits type:
 | `ci:` | CI/CD pipeline changes | none |
 
 - Optional scope in parentheses: `feat(auth): add token refresh`
-- Body (optional): blank line, then free text explaining _why_
+- Body (optional): blank line, then free text explaining *why*
 - Breaking change footer (if not using `!`): blank line, then `BREAKING CHANGE: <description>`
 - release-please reads these prefixes to decide what goes in the next release PR — an unprefixed or mislabeled commit either gets ignored for changelog purposes or bumps the wrong version segment
 
