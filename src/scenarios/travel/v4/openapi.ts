@@ -17,9 +17,22 @@ export const v4AirlineSchema = airlineSchema;
 export const v4FlightSchema = omitSchemaFields(flightSchema, ['price']);
 
 // v4 exposes all four seat classes (regular/economy/businessClass/firstClass), same as v3 — no
-// field trim needed.
-export const v4FlightPricingItemSchema = flightPricingResultItemSchema;
-// v4 routes always show RoutePricing's cheapest-bookable-fare shape as-is, same as v3.
+// field trim needed. `currency` can additionally be 'LOY' (TAK-28's Loyalty Points), only present
+// on flights whose airline has a loyalty program — see standard/generator.ts's makePricing.
+export const v4FlightPricingItemSchema = {
+  ...flightPricingResultItemSchema,
+  properties: {
+    ...flightPricingResultItemSchema.properties,
+    currency: {
+      type: 'string',
+      description:
+        "Code for currency (three letters), or 'LOY' for Loyalty Points (airline must have a loyalty program)",
+    },
+  },
+};
+// v4 routes always show RoutePricing's cheapest-bookable-fare shape as-is, same as v3. LOY never
+// appears here — it's excluded from the route's cheapest-bookable-fare `minimum` rollup (see
+// generator.ts's legMinimumPriceByCurrency).
 export const v4RoutePricingItemSchema = routePricingResultItemSchema;
 
 // v4 exposes `shortLived` (see standard/openapi.ts's loginBodySchema), same as v3, so it uses
@@ -32,11 +45,20 @@ export const v4LoginBodySchema = loginBodySchema;
 // v4 uses the shared base shape as-is, same pattern as v4FlightPricingItemSchema.
 export const v4FlightSeatSelectionSchema = flightSeatSelectionSchema;
 
+// TAK-28: `currency: 'LOY'` is allowed here — since every seat selection must match this single
+// request-level currency (see v4/controller.ts's CURRENCY_MISMATCH check), submitting LOY at
+// this level already enforces "every seat in the purchase is bought with LOY, never mixed with
+// another currency" without any extra per-seat validation.
 export const v4PurchaseBodySchema = {
   ...omitSchemaFields(purchaseBodySchema, ['price']),
   required: ['mode', 'outboundId', 'currency', 'seats'],
   properties: {
     ...omitSchemaFields(purchaseBodySchema, ['price']).properties,
+    currency: {
+      type: 'string',
+      description:
+        "Currency code (three letters) for the agreed price, or 'LOY' for Loyalty Points — applies to every seat in this purchase",
+    },
     seats: {
       type: 'array',
       description: 'One seat selection per flight across the outbound (and inbound, for RoundTrip) routes',

@@ -173,7 +173,8 @@ function totalPages(count: number): number {
 }
 
 export async function searchFlights(request: SearchFlightsRequest): Promise<SearchFlightsResult> {
-  const { from, to, departureDate, returnDate, id, mode, outbound, inbound } = await searchFlightsBase(request);
+  // TAK-28: v4 is the only version that generates LOY (loyalty points) pricing rows.
+  const { from, to, departureDate, returnDate, id, mode, outbound, inbound } = await searchFlightsBase(request, true);
 
   // TAK-27: apply the recent-date seat-class trim (v4 only) to each leg independently — the
   // outbound leg checks departureDate, the inbound (return) leg checks returnDate — before

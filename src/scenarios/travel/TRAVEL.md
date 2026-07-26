@@ -42,8 +42,12 @@ In advanced scenarios, look out for:
 - Alternative currencies;
 - Zero seats in a class;
 - Airports with zero airlines serving them;
-- Loyalty points as currency;
-- V4 only: for a search whose departureDate/returnDate falls within 15 days, each returned flight has one of its seat classes (never its only one) randomly withheld from `pricing`, across every currency it sells; `available` on that flight and its route are recalculated to match. This is a deliberate, undocumented-to-clients quirk (see v4/controller.ts's applyRecentDateSeatTrim) — not surfaced in the OpenAPI/Postman docs, only here.
+- Loyalty points as currency (V4 only — see below);
+- V4 only: for a search whose departureDate/returnDate falls within 15 days, each returned flight has one of its seat classes (never its only one) randomly withheld from `pricing`, across every currency it sells; `available` on that flight and its route are recalculated to match. This is a deliberate, undocumented-to-clients quirk (see v4/controller.ts's applyRecentDateSeatTrim) — not surfaced in the OpenAPI/Postman docs, only here. Since LOY (see below) is just another currency row on a withheld class, dropping that class drops its LOY row along with USD/local-currency, with no LOY-specific handling needed.
+
+### Loyalty Points (TAK-28, V4 only)
+
+`Airline.hasLoyaltyProgram` now drives an actual pricing currency, `LOY`, generated only for v4 searches (`searchFlightsBase`'s `includeLoyalty` param — see `standard/controller.ts`/`standard/generator.ts`). A Flight only gets `LOY` pricing rows when its airline has a loyalty program; the rate is per seat class, fixed regardless of route distance: `regular` 1000, `economy` 800, `businessClass` 2500, `firstClass` 4500 (units of LOY per 1 USD of that class's base price). The result is rounded up to the nearest 1000 and clamped to `[9000, 1,000,000]`. `LOY` is excluded from a Route's `pricing.minimum` cheapest-bookable-fare rollup — it's a parallel redemption price, never a competing "cheapest fare". Purchases enforce all-or-nothing: the purchase body's single `currency` field applies to every seat selection in the request, so submitting `currency: "LOY"` already means every seat in that purchase is bought with points, never mixed with a money currency.
 
 ## SQLite Build
 

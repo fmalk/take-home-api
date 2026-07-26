@@ -54,12 +54,16 @@ export interface SearchFlightsBaseResult extends SearchResults<FormattedRoute> {
 // Runs the direct/connecting/time-flow/grouping pipeline for a single from→to/date leg,
 // reusing the per-leg cache. Shared by the outbound search and, in RoundTrip mode, the
 // inbound (return) search — each leg is cached independently since they're different queries.
+// `includeLoyalty` (TAK-28, v4-only) is folded into the cache key: this cache is shared across
+// every scenario version (NAMESPACE = 'travel:base'), so a v4 request generating LOY pricing
+// rows must never poison the same from/to/date entry a v1-v3 request would read back.
 async function findRoutesForLeg(
   from: string,
   to: string,
   date: string,
   reqId: string,
   leg: 'outbound' | 'inbound',
+  includeLoyalty: boolean = false,
 ): Promise<Route[]> {
   logFlow({
     reqId,
@@ -68,13 +72,13 @@ async function findRoutesForLeg(
     data: { leg, from, to, date },
   });
 
-  const cacheKeyVal = cacheKey(NAMESPACE, 'flights', from, to, date);
+  const cacheKeyVal = cacheKey(NAMESPACE, 'flights', from, to, date, includeLoyalty ? 'loy' : 'std');
   let routesData = getCached<Route[]>(cacheKeyVal);
 
   if (!routesData) {
-    const direct = await findDirectFlights(from, to, date, 5);
+    const direct = await findDirectFlights(from, to, date, 5, includeLoyalty);
     const sequences: Flight[][] =
-      direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date);
+      direct.length > 0 ? direct.map((f) => [f]) : await findConnectingRoutes(from, to, date, includeLoyalty);
     const timed = await applyTimeFlow(sequences, date);
     const normalized = await applyNormalization(timed);
     const generated = groupRoutes(normalized);
@@ -99,7 +103,12 @@ async function findRoutesForLeg(
   return routesData;
 }
 
-export async function searchFlightsBase(request: SearchFlightsRequest): Promise<SearchFlightsBaseResult> {
+// `includeLoyalty` (TAK-28) is a v4-only opt-in for LOY pricing rows — every other version calls
+// this without it and gets the pre-TAK-28 pricing shape unchanged (see findRoutesForLeg).
+export async function searchFlightsBase(
+  request: SearchFlightsRequest,
+  includeLoyalty: boolean = false,
+): Promise<SearchFlightsBaseResult> {
   const { from, to, departureDate, returnDate } = request.query;
   const modeParam = request.query.mode?.toLowerCase();
 
@@ -117,9 +126,11 @@ export async function searchFlightsBase(request: SearchFlightsRequest): Promise<
     throw new ApiError(400, 'INVALID_RETURN_DATE', 'returnDate must be after departureDate');
   }
 
-  const outboundRoutes = await findRoutesForLeg(from, to, departureDate, request.id, 'outbound');
+  const outboundRoutes = await findRoutesForLeg(from, to, departureDate, request.id, 'outbound', includeLoyalty);
   const inboundRoutes =
-    mode === 'RoundTrip' ? await findRoutesForLeg(to, from, returnDate as string, request.id, 'inbound') : undefined;
+    mode === 'RoundTrip'
+      ? await findRoutesForLeg(to, from, returnDate as string, request.id, 'inbound', includeLoyalty)
+      : undefined;
 
   // Refresh the short-lived by-ID instance store on every access (cache hit or miss) so
   // Flights/Routes shown in this response stay resolvable by ID (seat/price selection,

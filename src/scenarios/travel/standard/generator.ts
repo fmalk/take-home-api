@@ -107,19 +107,47 @@ function classBasePriceUsd(distanceKms: number, seatClass: SeatClass): number {
   return Math.round(base * SEAT_CLASS_PRICE_MULTIPLIER[seatClass] * (1 + jitter) * 100) / 100;
 }
 
+// TAK-28: Loyalty Points (LOY), v4-only. Rate is units of LOY per 1 USD, per seat class — richer
+// cabins cost proportionally more points, same relative ordering as SEAT_CLASS_PRICE_MULTIPLIER
+// but its own fixed scale (not derived from it). This currency does not participate in
+// aggregateRouteMinimumPricing's cheapest-fare rollup (see TRAVEL.md: "This currency DOES NOT
+// COUNT for minimum pricing") — it's a parallel, opt-in redemption price, not a competing fare.
+export const LOYALTY_CURRENCY_CODE = 'LOY';
+const LOYALTY_RATE_PER_USD: Record<SeatClass, number> = {
+  regular: 1000,
+  economy: 800,
+  businessClass: 2500,
+  firstClass: 4500,
+};
+const LOYALTY_PRICE_STEP = 1000;
+const LOYALTY_MIN_PRICE = 9000;
+const LOYALTY_MAX_PRICE = 1_000_000;
+
+// LOY price step is 1000, rounded up, then clamped to [9000, 1000000] — the floor/ceiling apply
+// after rounding, so a rounded price already inside the step grid never gets nudged off it.
+function loyaltyPriceFor(priceUsd: number, seatClass: SeatClass): number {
+  const raw = priceUsd * LOYALTY_RATE_PER_USD[seatClass];
+  const stepped = Math.ceil(raw / LOYALTY_PRICE_STEP) * LOYALTY_PRICE_STEP;
+  return Math.min(LOYALTY_MAX_PRICE, Math.max(LOYALTY_MIN_PRICE, stepped));
+}
+
 // One FlightPricing object per (seat class × currency) combination — never more than one class
 // field set per object (TRAVEL.md "Alternative currencies" / seat-class edge cases). Currencies
-// offered are USD (universal) plus the departure airport's local currency, if different.
-// Every class is offered against the flight's full `available` seat count at generation time;
-// applySeatClassSplit() (Normalization) later carves that pool into per-class fractions.
+// offered are USD (universal) plus the departure airport's local currency, if different, plus LOY
+// when the airline has a loyalty program and the caller opts in (v4 only — see makeFlight's
+// `includeLoyalty` param). Every class is offered against the flight's full `available` seat
+// count at generation time; applySeatClassSplit() (Normalization) later carves that pool into
+// per-class fractions.
 async function makePricing(
   distanceKms: number,
   available: number,
   airline: Airline,
   from: Airport,
+  includeLoyalty: boolean,
 ): Promise<FlightPricing[]> {
   const classes = pickSeatClasses(airline);
   const currencies = Array.from(new Set(['USD', from.localCurrency]));
+  const offerLoyalty = includeLoyalty && airline.hasLoyaltyProgram;
 
   const pricing: FlightPricing[] = [];
   for (const seatClass of classes) {
@@ -129,6 +157,13 @@ async function makePricing(
         currency,
         available,
         [seatClass]: await convertFromUsd(priceUsd, currency),
+      });
+    }
+    if (offerLoyalty) {
+      pricing.push({
+        currency: LOYALTY_CURRENCY_CODE,
+        available,
+        [seatClass]: loyaltyPriceFor(priceUsd, seatClass),
       });
     }
   }
@@ -148,18 +183,20 @@ function derivePrice(pricing: FlightPricing[]): number {
 }
 
 // Timestamps here are placeholders (the raw query date) — applyTimeFlow overwrites them once a
-// Route's departure slot is known.
+// Route's departure slot is known. `includeLoyalty` is TAK-28's v4-only opt-in for LOY pricing
+// rows (see makePricing); every other scenario version leaves it false/omitted.
 async function makeFlight(
   from: Airport,
   to: Airport,
   date: string,
   airline: Airline,
   aircraftList: Aircraft[],
+  includeLoyalty: boolean = false,
 ): Promise<Flight> {
   const flightDistanceKms = haversineKm(from, to);
   const aircraft = pickAircraft(from, to, aircraftList);
   const available = faker.number.int({ min: 10, max: aircraft.capacity });
-  const pricing = await makePricing(flightDistanceKms, available, airline, from);
+  const pricing = await makePricing(flightDistanceKms, available, airline, from, includeLoyalty);
   return {
     id: generateId(),
     flightTimeHours: makeDurationHours(flightDistanceKms),
@@ -202,11 +239,12 @@ async function getOrMakeFlight(
   date: string,
   airline: Airline,
   aircraftList: Aircraft[],
+  includeLoyalty: boolean = false,
 ): Promise<Flight> {
   const key = flightCacheKey(from.iata, to.iata, date, airline.iata);
   let flight = cache.get(key);
   if (!flight) {
-    flight = await makeFlight(from, to, date, airline, aircraftList);
+    flight = await makeFlight(from, to, date, airline, aircraftList, includeLoyalty);
     cache.set(key, flight);
   }
   return flight;
@@ -222,11 +260,14 @@ async function getOrMakeFlight(
 const MAX_DIRECT_REGIONAL_KM = 3500;
 
 // `count` will gate how many routes are returned once multi-route/layover logic lands.
+// `includeLoyalty` is TAK-28's v4-only opt-in for LOY pricing (see makePricing) — every other
+// version calls this without it and gets the pre-TAK-28 pricing shape unchanged.
 export async function findDirectFlights(
   from: string,
   to: string,
   date: string,
   _count: number = 10,
+  includeLoyalty: boolean = false,
 ): Promise<Flight[]> {
   faker.seed(hashFlightQuery(from, to, date));
 
@@ -243,7 +284,7 @@ export async function findDirectFlights(
   const regionalAirlines = await store.getRegionalAirlines(from, to);
 
   return Promise.all(
-    regionalAirlines.map((airline) => makeFlight(fromAirport, toAirport, date, airline, aircraftList)),
+    regionalAirlines.map((airline) => makeFlight(fromAirport, toAirport, date, airline, aircraftList, includeLoyalty)),
   );
 }
 
@@ -259,6 +300,7 @@ async function reduceToHub(
   direction: 'outbound' | 'inbound',
   flightCache: FlightCache,
   aircraftList: Aircraft[],
+  includeLoyalty: boolean = false,
 ): Promise<GatewayCandidate[]> {
   if (airport.isHub) {
     return [{ hub: airport, edges: [] }];
@@ -282,11 +324,11 @@ async function reduceToHub(
       const airline = faker.helpers.arrayElement(airlines);
       const connector =
         direction === 'outbound'
-          ? await getOrMakeFlight(flightCache, airport, regular, date, airline, aircraftList)
-          : await getOrMakeFlight(flightCache, regular, airport, date, airline, aircraftList);
+          ? await getOrMakeFlight(flightCache, airport, regular, date, airline, aircraftList, includeLoyalty)
+          : await getOrMakeFlight(flightCache, regular, airport, date, airline, aircraftList, includeLoyalty);
 
       // Recurse: the regular connector airport still needs to reach a proper Hub.
-      const downstream = await reduceToHub(regular, date, direction, flightCache, aircraftList);
+      const downstream = await reduceToHub(regular, date, direction, flightCache, aircraftList, includeLoyalty);
       for (const gw of downstream) {
         results.push({
           hub: gw.hub,
@@ -310,8 +352,8 @@ async function reduceToHub(
   const airline = faker.helpers.arrayElement(airlines);
   const edge =
     direction === 'outbound'
-      ? await getOrMakeFlight(flightCache, airport, nearest.hub, date, airline, aircraftList)
-      : await getOrMakeFlight(flightCache, nearest.hub, airport, date, airline, aircraftList);
+      ? await getOrMakeFlight(flightCache, airport, nearest.hub, date, airline, aircraftList, includeLoyalty)
+      : await getOrMakeFlight(flightCache, nearest.hub, airport, date, airline, aircraftList, includeLoyalty);
 
   return [{ hub: nearest.hub, edges: [edge] }];
 }
@@ -388,7 +430,12 @@ function* generateAirlineCombinations(legAirlines: Airline[][]): Generator<Airli
 // a destination Hub per FLIGHT_GENERATOR.md Path Flow. Each returned Flight[] is one
 // ordered leg-sequence for a single Route (regional→regular→hub → hub-path → hub→regular→regional,
 // with degenerate cases when either end is already a Hub or regular).
-export async function findConnectingRoutes(from: string, to: string, date: string): Promise<Flight[][]> {
+export async function findConnectingRoutes(
+  from: string,
+  to: string,
+  date: string,
+  includeLoyalty: boolean = false,
+): Promise<Flight[][]> {
   faker.seed(hashFlightQuery(from, to, date));
 
   const fromAirport = await store.getAirport(from);
@@ -399,8 +446,8 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
 
   const aircraftList = await store.getAircraft();
   const flightCache: FlightCache = new Map();
-  const starts = await reduceToHub(fromAirport, date, 'outbound', flightCache, aircraftList);
-  const ends = await reduceToHub(toAirport, date, 'inbound', flightCache, aircraftList);
+  const starts = await reduceToHub(fromAirport, date, 'outbound', flightCache, aircraftList, includeLoyalty);
+  const ends = await reduceToHub(toAirport, date, 'inbound', flightCache, aircraftList, includeLoyalty);
   if (starts.length === 0 || ends.length === 0) return [];
 
   const routes: Flight[][] = [];
@@ -439,7 +486,15 @@ export async function findConnectingRoutes(from: string, to: string, date: strin
         const hubLegs: Flight[] = [];
         for (let i = 0; i < hubPath.length - 1; i++) {
           hubLegs.push(
-            await getOrMakeFlight(flightCache, hubPath[i], hubPath[i + 1], date, airlineCombination[i], aircraftList),
+            await getOrMakeFlight(
+              flightCache,
+              hubPath[i],
+              hubPath[i + 1],
+              date,
+              airlineCombination[i],
+              aircraftList,
+              includeLoyalty,
+            ),
           );
         }
         routes.push([...start.edges, ...hubLegs, ...end.edges]);
@@ -820,6 +875,10 @@ const MINIMUM_CLASS_ORDER: SeatClass[] = ['regular', 'economy'];
 function legMinimumPriceByCurrency(leg: Flight): Map<string, number> {
   const minimums = new Map<string, number>();
   for (const entry of leg.pricing) {
+    // TAK-28: LOY never counts toward the route's cheapest-bookable-fare minimum — it's a
+    // parallel redemption price, not a competing fare (see LOYALTY_CURRENCY_CODE).
+    if (entry.currency === LOYALTY_CURRENCY_CODE) continue;
+
     const seatClass = MINIMUM_CLASS_ORDER.find((c) => entry[c] !== undefined);
     if (!seatClass) continue;
 

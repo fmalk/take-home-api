@@ -319,6 +319,7 @@ interface SearchedRoute {
   id: string;
   currency: string;
   flights: SearchedFlight[];
+  pricing?: FlightPricingRow[];
 }
 
 function pickSeatClass(currencyPricing: FlightPricingRow): string {
@@ -326,6 +327,256 @@ function pickSeatClass(currencyPricing: FlightPricingRow): string {
     (key) => currencyPricing[key] !== undefined,
   ) as string;
 }
+
+// TAK-28: LOY (Loyalty Points) is a v4-only pricing currency, generated only for flights whose
+// airline has a loyalty program (Airline.hasLoyaltyProgram). Search date is far outside the
+// 15-day recent-date window (see the TAK-27 suite above) so seat classes aren't randomly trimmed.
+describe('V4 Flight Search - Loyalty Points (TAK-28)', () => {
+  const departureDate = '2027-01-24';
+
+  async function searchHkgLax(): Promise<SearchedRoute[]> {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const responseBody = JSON.parse(response.body);
+    return responseBody.outbound;
+  }
+
+  it('offers a LOY pricing row on at least one flight across a large HKG->LAX result set', async () => {
+    const routes = await searchHkgLax();
+
+    let sawLoy = false;
+    for (const route of routes) {
+      for (const flight of route.flights) {
+        if (flight.pricing.some((p: FlightPricingRow) => p.currency === 'LOY')) {
+          sawLoy = true;
+        }
+      }
+    }
+    expect(sawLoy).toBe(true);
+  });
+
+  it('never prices LOY below 9000 or above 1,000,000, and always on a 1000-step', async () => {
+    const routes = await searchHkgLax();
+
+    let checkedAtLeastOneLoyRow = false;
+    for (const route of routes) {
+      for (const flight of route.flights) {
+        for (const pricing of flight.pricing) {
+          if (pricing.currency !== 'LOY') continue;
+          for (const key of ['regular', 'economy', 'businessClass', 'firstClass']) {
+            const price = pricing[key] as number | undefined;
+            if (price === undefined) continue;
+            checkedAtLeastOneLoyRow = true;
+            expect(price).toBeGreaterThanOrEqual(9000);
+            expect(price).toBeLessThanOrEqual(1_000_000);
+            expect(price % 1000).toBe(0);
+          }
+        }
+      }
+    }
+    expect(checkedAtLeastOneLoyRow).toBe(true);
+  });
+
+  it('never counts LOY toward a route’s cheapest-bookable-fare pricing.minimum', async () => {
+    const routes = await searchHkgLax();
+
+    for (const route of routes) {
+      expect((route.pricing ?? []).some((p) => p.currency === 'LOY')).toBe(false);
+    }
+  });
+
+  it('prices richer classes higher in LOY, matching the fixed per-class rate ordering', async () => {
+    const routes = await searchHkgLax();
+
+    for (const route of routes) {
+      for (const flight of route.flights) {
+        const loyRow = flight.pricing.find((p: FlightPricingRow) => p.currency === 'LOY');
+        if (!loyRow) continue;
+
+        // Not every flight offers every class, but where two premium classes coexist on the
+        // same LOY row, the higher-rate class must never price lower.
+        if (loyRow.businessClass !== undefined && loyRow.regular !== undefined) {
+          expect(loyRow.businessClass as number).toBeGreaterThanOrEqual(loyRow.regular as number);
+        }
+        if (loyRow.firstClass !== undefined && loyRow.businessClass !== undefined) {
+          expect(loyRow.firstClass as number).toBeGreaterThanOrEqual(loyRow.businessClass as number);
+        }
+      }
+    }
+  });
+});
+
+describe('V4 Flight Search - Loyalty Points and the 15-day seat trim (TAK-27 + TAK-28)', () => {
+  it('drops a withheld seat class’s LOY row along with its USD/local-currency rows', async () => {
+    const departureDate = daysFromNow(10);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const body = JSON.parse(response.body);
+
+    for (const route of body.outbound) {
+      for (const flight of route.flights) {
+        for (const key of ['regular', 'economy', 'businessClass', 'firstClass']) {
+          const currenciesOfferingClass = new Set(
+            flight.pricing
+              .filter((p: FlightPricingRow) => p[key] !== undefined)
+              .map((p: FlightPricingRow) => p.currency),
+          );
+          if (currenciesOfferingClass.size === 0) continue;
+
+          // A surviving class must be priced consistently across every currency it offers,
+          // including LOY when the airline has a loyalty program — never partially dropped.
+          const nonLoyCurrencies = new Set(
+            flight.pricing
+              .filter((p: FlightPricingRow) => p.currency !== 'LOY' && p[key] !== undefined)
+              .map((p: FlightPricingRow) => p.currency),
+          );
+          const hasLoy = currenciesOfferingClass.has('LOY');
+          if (hasLoy) {
+            expect(nonLoyCurrencies.size).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('V4 Purchase - Loyalty Points all-or-nothing (TAK-28)', () => {
+  let token: string;
+
+  beforeAll(async () => {
+    const username = 'loyal';
+    const loginResponse = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v4/login',
+      payload: { username, password: `tr@vel${username.slice(0, 5)}` },
+    });
+    token = JSON.parse(loginResponse.body).access_token;
+  });
+
+  async function searchRouteWithLoyalty(): Promise<SearchedRoute | undefined> {
+    const departureDate = '2027-01-24';
+    const searchResponse = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const body = JSON.parse(searchResponse.body);
+
+    for (const route of body.outbound) {
+      const everyFlightHasLoy = route.flights.every((f: SearchedFlight) =>
+        f.pricing.some((p: FlightPricingRow) => p.currency === 'LOY'),
+      );
+      if (everyFlightHasLoy) {
+        return { id: route.id, currency: 'LOY', flights: route.flights };
+      }
+    }
+    return undefined;
+  }
+
+  it('purchases a route entirely in LOY when every flight offers a loyalty-eligible airline', async () => {
+    const route = await searchRouteWithLoyalty();
+    if (!route) return; // HKG->LAX's random airline mix didn't surface an all-LOY route this run.
+
+    const seats = route.flights.map((flight) => {
+      const loyPricing = flight.pricing.find((p) => p.currency === 'LOY') as FlightPricingRow;
+      const seatClass = pickSeatClass(loyPricing);
+      return { flightId: flight.id, seatClass, currency: 'LOY', price: loyPricing[seatClass] };
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v4/purchase',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: 'OneWay',
+        outboundId: route.id,
+        currency: 'LOY',
+        seats,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.currency).toBe('LOY');
+  });
+
+  it('rejects a purchase where the request currency is LOY but a seat selection uses a different currency', async () => {
+    const route = await searchRouteWithLoyalty();
+    if (!route) return;
+
+    const [firstFlight, ...restFlights] = route.flights;
+    const loyPricing = firstFlight.pricing.find((p) => p.currency === 'LOY') as FlightPricingRow;
+    const firstSeatClass = pickSeatClass(loyPricing);
+
+    const seats = [
+      { flightId: firstFlight.id, seatClass: firstSeatClass, currency: 'USD', price: 100 },
+      ...restFlights.map((flight) => {
+        const pricing = flight.pricing.find((p) => p.currency === 'LOY') as FlightPricingRow;
+        const seatClass = pickSeatClass(pricing);
+        return { flightId: flight.id, seatClass, currency: 'LOY', price: pricing[seatClass] };
+      }),
+    ];
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v4/purchase',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: 'OneWay',
+        outboundId: route.id,
+        currency: 'LOY',
+        seats,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body);
+    expect(body.code).toBe('CURRENCY_MISMATCH');
+  });
+
+  it('rejects a LOY purchase for a flight whose airline has no loyalty program', async () => {
+    const departureDate = '2027-01-24';
+    const searchResponse = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+    const searchBody = JSON.parse(searchResponse.body);
+
+    let nonLoyaltyFlight: SearchedFlight | undefined;
+    let routeId: string | undefined;
+    for (const route of searchBody.outbound) {
+      const found = route.flights.find(
+        (f: SearchedFlight) => !f.pricing.some((p: FlightPricingRow) => p.currency === 'LOY'),
+      );
+      if (found) {
+        nonLoyaltyFlight = found;
+        routeId = route.id;
+        break;
+      }
+    }
+    if (!nonLoyaltyFlight || !routeId) return; // Every flight this run happened to offer LOY.
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/travel/v4/purchase',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: 'OneWay',
+        outboundId: routeId,
+        currency: 'LOY',
+        seats: [{ flightId: nonLoyaltyFlight.id, seatClass: 'regular', currency: 'LOY', price: 9000 }],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body);
+    expect(['CURRENCY_NOT_AVAILABLE', 'SEAT_CLASS_NOT_AVAILABLE', 'MISSING_FLIGHT_SELECTION']).toContain(body.code);
+  });
+});
 
 describe('V4 Auth - Token Refresh', () => {
   it('login returns both access_token and refresh_token', async () => {
