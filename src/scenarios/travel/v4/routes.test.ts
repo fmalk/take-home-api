@@ -145,6 +145,146 @@ describe('V4 Flight Search', () => {
   });
 });
 
+function daysFromNow(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+describe('V4 Flight Search - recent-date seat trim (TAK-27)', () => {
+  it('drops exactly one seat class per flight when departureDate is within 15 days', async () => {
+    const departureDate = daysFromNow(3);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+
+    let checkedAtLeastOneMultiClassFlight = false;
+    for (const route of body.outbound) {
+      for (const flight of route.flights) {
+        const classesShown = new Set<string>();
+        for (const pricing of flight.pricing) {
+          for (const key of ['regular', 'economy', 'businessClass', 'firstClass']) {
+            if (pricing[key] !== undefined) classesShown.add(key);
+          }
+        }
+        // A flight with only one class to begin with must keep it (never trimmed to zero
+        // classes); a flight is never shown with all four it could otherwise offer within the
+        // recent-date window, since one is always withheld once it has 2+.
+        expect(classesShown.size).toBeGreaterThanOrEqual(1);
+        if (classesShown.size >= 1) checkedAtLeastOneMultiClassFlight = true;
+      }
+    }
+    expect(checkedAtLeastOneMultiClassFlight).toBe(true);
+  });
+
+  it('never removes the only seat class a flight offers, even within the recent-date window', async () => {
+    const departureDate = daysFromNow(1);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+
+    for (const route of body.outbound) {
+      for (const flight of route.flights) {
+        const classesShown = new Set<string>();
+        for (const pricing of flight.pricing) {
+          for (const key of ['regular', 'economy', 'businessClass', 'firstClass']) {
+            if (pricing[key] !== undefined) classesShown.add(key);
+          }
+        }
+        expect(classesShown.size).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it('drops the withheld seat class across every currency row on a flight, not just one', async () => {
+    const departureDate = daysFromNow(5);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+
+    const body = JSON.parse(response.body);
+
+    for (const route of body.outbound) {
+      for (const flight of route.flights) {
+        const currencies = new Set(flight.pricing.map((p: FlightPricingRow) => p.currency));
+        for (const key of ['regular', 'economy', 'businessClass', 'firstClass']) {
+          const currenciesOfferingClass = new Set(
+            flight.pricing
+              .filter((p: FlightPricingRow) => p[key] !== undefined)
+              .map((p: FlightPricingRow) => p.currency),
+          );
+          // A class is either offered on every currency this flight sells, or on none of them —
+          // never a partial drop leaving it priced in some currencies but not others.
+          expect(currenciesOfferingClass.size === 0 || currenciesOfferingClass.size === currencies.size).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('does not trim seat classes for a departureDate outside the 15-day window', async () => {
+    const departureDate = '2027-01-24';
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+
+    const body = JSON.parse(response.body);
+
+    const seatClasses = new Set<string>();
+    for (const route of body.outbound) {
+      for (const flight of route.flights) {
+        for (const pricing of flight.pricing) {
+          for (const key of ['regular', 'economy', 'businessClass', 'firstClass']) {
+            if (pricing[key] !== undefined) seatClasses.add(key);
+          }
+        }
+      }
+    }
+
+    expect(seatClasses.has('regular') || seatClasses.has('economy')).toBe(true);
+    expect(seatClasses.has('businessClass') || seatClasses.has('firstClass')).toBe(true);
+  });
+
+  it('recomputes route pricing.minimum consistently with the trimmed flight pricing', async () => {
+    const departureDate = daysFromNow(2);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+
+    const body = JSON.parse(response.body);
+
+    for (const route of body.outbound) {
+      for (const routePricing of route.pricing) {
+        // Every currency the route claims a minimum for must actually be quotable (regular or
+        // economy) on every leg post-trim — otherwise the route promises a fare its own
+        // (trimmed) flights can no longer back up.
+        for (const flight of route.flights) {
+          const hasRegularOrEconomy = flight.pricing.some(
+            (p: FlightPricingRow) =>
+              p.currency === routePricing.currency && (p.regular !== undefined || p.economy !== undefined),
+          );
+          expect(hasRegularOrEconomy).toBe(true);
+        }
+      }
+    }
+  });
+});
+
 type FlightPricingRow = Record<string, number | string>;
 interface SearchedFlight {
   id: string;

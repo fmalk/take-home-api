@@ -17,8 +17,8 @@ import { getStoredRoute, storeSearchResults, getStoredSearchResults } from '../s
 import { logFlow } from '../../../core/logger.js';
 import type { FormattedFlight, FormattedRoute } from '../standard/formatters.js';
 import { formatRoute } from '../standard/formatters.js';
-import type { Airport, City, Route, Flight } from '../standard/types.js';
-import type { V4Airport, V4Flight, V4Route, FlightSeatSelection, SearchPagesQuery } from './types.js';
+import type { Airport, City, Route, Flight, FlightPricing, RoutePricing } from '../standard/types.js';
+import type { V4Airport, V4Flight, V4Route, FlightSeatSelection, SearchPagesQuery, SeatClass } from './types.js';
 import { SEARCH_PAGE_SIZE } from './types.js';
 
 export type { SearchFlightsQuery, FlightIdParams, SearchFlightsRequest, FlightDetailRequest };
@@ -47,6 +47,105 @@ function toV4Route({ price: _price, flights, ...route }: FormattedRoute): V4Rout
   return { ...route, flights: flights.map(toV4Flight) };
 }
 
+// TAK-27: within RECENT_DATE_WINDOW_DAYS of "now", v4 search presents each flight with one of
+// its seat classes randomly withheld (see dropRandomSeatClass) — a deliberate "last-minute
+// booking, availability is patchy" flavor quirk, v4 only.
+//
+// KNOWN LIMITATION (intentional, presentation-only): this trim is applied to a per-request clone
+// of the formatted routes right before the v4 search response is built, not to the underlying
+// stored Route/Flight instances (shared across every version via the `travel:base` cache and the
+// `travel:instances` by-ID store, see standard/controller.ts and standard/instance-store.ts).
+// Mutating those shared instances would leak this v4-only quirk into v1/v2/v3's results for the
+// same flights. Consequence: GET /v4/flights/:id and POST /v4/purchase still resolve the full,
+// untrimmed pricing for a flight whose class was hidden from the search response that surfaced
+// it — a class dropped from search can still be looked up/booked directly by ID. Fine for this
+// scenario's educational purpose; a production system would need the trim to be consistent
+// end-to-end (e.g. a per-version stored snapshot) instead.
+const RECENT_DATE_WINDOW_DAYS = 15;
+
+function isWithinRecentDateWindow(date: string): boolean {
+  const target = new Date(`${date}T00:00:00Z`).getTime();
+  if (Number.isNaN(target)) return false;
+  const diffDays = (target - Date.now()) / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= RECENT_DATE_WINDOW_DAYS;
+}
+
+const ALL_SEAT_CLASSES: SeatClass[] = ['regular', 'economy', 'businessClass', 'firstClass'];
+
+function seatClassesOffered(pricing: FlightPricing[]): SeatClass[] {
+  return ALL_SEAT_CLASSES.filter((seatClass) => pricing.some((p) => p[seatClass] !== undefined));
+}
+
+// Drops every currency row for one randomly-picked seat class the flight offers — never the only
+// class it has (a flight must always be bookable in at least one class). Deliberately crude per
+// TAK-27: no seat-pool rebalancing across the remaining classes, `available` is left as-is on
+// whatever pricing rows survive.
+function dropRandomSeatClass(flight: FormattedFlight): FormattedFlight {
+  const classes = seatClassesOffered(flight.pricing);
+  if (classes.length <= 1) return flight;
+
+  const dropped = faker.helpers.arrayElement(classes);
+  return { ...flight, pricing: flight.pricing.filter((p) => p[dropped] === undefined) };
+}
+
+// Route-level `pricing.minimum` (see aggregateRouteMinimumPricing in standard/generator.ts) was
+// computed from the pre-trim flights and can reference a class/currency this trim just hid from
+// one of the route's legs; recomputed here so the route summary never promises a fare its own
+// (trimmed) flights no longer show. Mirrors that function's cheapest-of-regular/economy rule and
+// its "only currencies offered on every leg" rule, applied to the trimmed pricing instead.
+const MINIMUM_CLASS_ORDER: SeatClass[] = ['regular', 'economy'];
+
+function legMinimumPriceByCurrency(flight: FormattedFlight): Map<string, number> {
+  const minimums = new Map<string, number>();
+  for (const entry of flight.pricing) {
+    const seatClass = MINIMUM_CLASS_ORDER.find((c) => entry[c] !== undefined);
+    if (!seatClass) continue;
+    const price = entry[seatClass] as number;
+    const current = minimums.get(entry.currency);
+    if (current === undefined || price < current) minimums.set(entry.currency, price);
+  }
+  return minimums;
+}
+
+function recomputeRouteMinimumPricing(flights: FormattedFlight[], routeAvailable: number): RoutePricing[] {
+  if (flights.length === 0) return [];
+
+  const [firstMinimums, ...restMinimums] = flights.map(legMinimumPriceByCurrency);
+  const pricing: RoutePricing[] = [];
+
+  for (const [currency, firstAmount] of firstMinimums) {
+    let total = firstAmount;
+    let offeredOnEveryLeg = true;
+
+    for (const legMinimums of restMinimums) {
+      const amount = legMinimums.get(currency);
+      if (amount === undefined) {
+        offeredOnEveryLeg = false;
+        break;
+      }
+      total += amount;
+    }
+
+    if (offeredOnEveryLeg) {
+      pricing.push({ currency, available: routeAvailable, minimum: Math.round(total * 100) / 100 });
+    }
+  }
+  return pricing;
+}
+
+// Applies the TAK-27 seat-class trim to every flight in a route (when the route's leg date falls
+// in the recent-date window) and recomputes the route's own `pricing.minimum` off the trimmed
+// flights so it stays consistent with what's actually shown.
+function applyRecentDateSeatTrim(route: FormattedRoute): FormattedRoute {
+  const flights = route.flights.map(dropRandomSeatClass);
+  return { ...route, flights, pricing: recomputeRouteMinimumPricing(flights, route.available) };
+}
+
+function applyRecentDateSeatTrimToLeg(routes: FormattedRoute[], date: string): FormattedRoute[] {
+  if (!isWithinRecentDateWindow(date)) return routes;
+  return routes.map(applyRecentDateSeatTrim);
+}
+
 export interface SearchFlightsResult extends Omit<SearchFlightsQuery, 'mode'> {
   id: string;
   mode: 'OneWay' | 'RoundTrip';
@@ -65,10 +164,16 @@ function totalPages(count: number): number {
 export async function searchFlights(request: SearchFlightsRequest): Promise<SearchFlightsResult> {
   const { from, to, departureDate, returnDate, id, mode, outbound, inbound } = await searchFlightsBase(request);
 
+  // TAK-27: apply the recent-date seat-class trim (v4 only) to each leg independently — the
+  // outbound leg checks departureDate, the inbound (return) leg checks returnDate — before
+  // storing/paginating, so every page of this search sees the same trimmed pricing.
+  const trimmedOutbound = applyRecentDateSeatTrimToLeg(outbound, departureDate);
+  const trimmedInbound = returnDate && inbound ? applyRecentDateSeatTrimToLeg(inbound, returnDate) : inbound;
+
   // Route/Flight instances (formatRoute's source) are only resolvable by ID for the instance
   // store TTL, same window /search/pages needs to still be able to slice a later page — so the
   // full route lists are stashed here, keyed by this search's own id, rather than re-derived.
-  storeSearchResults(id, { outbound, inbound });
+  storeSearchResults(id, { outbound: trimmedOutbound, inbound: trimmedInbound });
 
   return {
     from,
@@ -77,12 +182,12 @@ export async function searchFlights(request: SearchFlightsRequest): Promise<Sear
     returnDate,
     id,
     mode,
-    outbound: outbound.slice(0, SEARCH_PAGE_SIZE).map(toV4Route),
+    outbound: trimmedOutbound.slice(0, SEARCH_PAGE_SIZE).map(toV4Route),
     outboundCurrentPage: 1,
-    outboundTotalPages: totalPages(outbound.length),
-    inbound: inbound ? inbound.slice(0, SEARCH_PAGE_SIZE).map(toV4Route) : undefined,
-    inboundCurrentPage: inbound ? 1 : undefined,
-    inboundTotalPages: inbound ? totalPages(inbound.length) : undefined,
+    outboundTotalPages: totalPages(trimmedOutbound.length),
+    inbound: trimmedInbound ? trimmedInbound.slice(0, SEARCH_PAGE_SIZE).map(toV4Route) : undefined,
+    inboundCurrentPage: trimmedInbound ? 1 : undefined,
+    inboundTotalPages: trimmedInbound ? totalPages(trimmedInbound.length) : undefined,
   };
 }
 
