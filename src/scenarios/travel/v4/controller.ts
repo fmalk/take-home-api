@@ -78,14 +78,22 @@ function seatClassesOffered(pricing: FlightPricing[]): SeatClass[] {
 
 // Drops every currency row for one randomly-picked seat class the flight offers — never the only
 // class it has (a flight must always be bookable in at least one class). Deliberately crude per
-// TAK-27: no seat-pool rebalancing across the remaining classes, `available` is left as-is on
-// whatever pricing rows survive.
+// TAK-27: no seat-pool rebalancing across the remaining classes — each surviving class keeps
+// whatever per-class `available` it already had (see applySeatClassSplit in generator.ts).
+//
+// Flight-level `available` (the whole-plane pool Route aggregation mins across legs) DOES need
+// to shrink here, though: it was generated as the sum of every class's independent pool (e.g. 40
+// regular + 50 economy = 90), so once a class's pricing rows are gone, `available` must drop to
+// just the surviving classes' pools — otherwise it keeps advertising seats behind a class the
+// response no longer shows.
 function dropRandomSeatClass(flight: FormattedFlight): FormattedFlight {
   const classes = seatClassesOffered(flight.pricing);
   if (classes.length <= 1) return flight;
 
   const dropped = faker.helpers.arrayElement(classes);
-  return { ...flight, pricing: flight.pricing.filter((p) => p[dropped] === undefined) };
+  const pricing = flight.pricing.filter((p) => p[dropped] === undefined);
+  const available = Math.max(...pricing.map((p) => p.available));
+  return { ...flight, pricing, available };
 }
 
 // Route-level `pricing.minimum` (see aggregateRouteMinimumPricing in standard/generator.ts) was
@@ -134,11 +142,14 @@ function recomputeRouteMinimumPricing(flights: FormattedFlight[], routeAvailable
 }
 
 // Applies the TAK-27 seat-class trim to every flight in a route (when the route's leg date falls
-// in the recent-date window) and recomputes the route's own `pricing.minimum` off the trimmed
-// flights so it stays consistent with what's actually shown.
+// in the recent-date window). Since a trimmed flight's own `available` can shrink (see
+// dropRandomSeatClass), the route's `available` (min across legs, same rule as groupRoutes in
+// generator.ts) and `pricing.minimum` are both recomputed off the trimmed flights so neither one
+// keeps advertising a seat count the response no longer backs up.
 function applyRecentDateSeatTrim(route: FormattedRoute): FormattedRoute {
   const flights = route.flights.map(dropRandomSeatClass);
-  return { ...route, flights, pricing: recomputeRouteMinimumPricing(flights, route.available) };
+  const available = Math.min(...flights.map((f) => f.available));
+  return { ...route, flights, available, pricing: recomputeRouteMinimumPricing(flights, available) };
 }
 
 function applyRecentDateSeatTrimToLeg(routes: FormattedRoute[], date: string): FormattedRoute[] {

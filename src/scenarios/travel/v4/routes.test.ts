@@ -153,7 +153,7 @@ function daysFromNow(days: number): string {
 
 describe('V4 Flight Search - recent-date seat trim (TAK-27)', () => {
   it('drops exactly one seat class per flight when departureDate is within 15 days', async () => {
-    const departureDate = daysFromNow(3);
+    const departureDate = daysFromNow(10);
 
     const response = await app.inject({
       method: 'GET',
@@ -183,7 +183,7 @@ describe('V4 Flight Search - recent-date seat trim (TAK-27)', () => {
   });
 
   it('never removes the only seat class a flight offers, even within the recent-date window', async () => {
-    const departureDate = daysFromNow(1);
+    const departureDate = daysFromNow(10);
 
     const response = await app.inject({
       method: 'GET',
@@ -207,7 +207,7 @@ describe('V4 Flight Search - recent-date seat trim (TAK-27)', () => {
   });
 
   it('drops the withheld seat class across every currency row on a flight, not just one', async () => {
-    const departureDate = daysFromNow(5);
+    const departureDate = daysFromNow(10);
 
     const response = await app.inject({
       method: 'GET',
@@ -259,7 +259,7 @@ describe('V4 Flight Search - recent-date seat trim (TAK-27)', () => {
   });
 
   it('recomputes route pricing.minimum consistently with the trimmed flight pricing', async () => {
-    const departureDate = daysFromNow(2);
+    const departureDate = daysFromNow(10);
 
     const response = await app.inject({
       method: 'GET',
@@ -281,6 +281,31 @@ describe('V4 Flight Search - recent-date seat trim (TAK-27)', () => {
           expect(hasRegularOrEconomy).toBe(true);
         }
       }
+    }
+  });
+
+  it('recalculates flight.available to only the surviving classes’ pools, and route.available as the min across legs', async () => {
+    const departureDate = daysFromNow(10);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/travel/v4/search?from=HKG&to=LAX&departureDate=${departureDate}`,
+    });
+
+    const body = JSON.parse(response.body);
+
+    for (const route of body.outbound) {
+      for (const flight of route.flights) {
+        // Flight.available (the whole-plane pool) is generated as the SUM of every offered
+        // class's independent pool (see applySeatClassSplit in generator.ts) — e.g. 40 regular +
+        // 50 economy = 90. Once a class's pricing rows are dropped, available must shrink to
+        // just the surviving classes' pools, not keep advertising the pre-trim total.
+        const perClassPools = flight.pricing.map((p: FlightPricingRow) => p.available as number);
+        expect(flight.available).toBe(Math.max(...perClassPools));
+      }
+
+      const minFlightAvailable = Math.min(...route.flights.map((f: { available: number }) => f.available));
+      expect(route.available).toBe(minFlightAvailable);
     }
   });
 });

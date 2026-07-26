@@ -43,6 +43,7 @@ In advanced scenarios, look out for:
 - Zero seats in a class;
 - Airports with zero airlines serving them;
 - Loyalty points as currency;
+- V4 only: for a search whose departureDate/returnDate falls within 15 days, each returned flight has one of its seat classes (never its only one) randomly withheld from `pricing`, across every currency it sells; `available` on that flight and its route are recalculated to match. This is a deliberate, undocumented-to-clients quirk (see v4/controller.ts's applyRecentDateSeatTrim) — not surfaced in the OpenAPI/Postman docs, only here.
 
 ## SQLite Build
 
