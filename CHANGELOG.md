@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.8](https://github.com/fmalk/take-home-api/compare/v0.5.7...v0.5.8) (2026-07-29)
+
+
+### Bug Fixes
+
+* **dependency:** patched dependency as suggested from dependabot ([99fc7a3](https://github.com/fmalk/take-home-api/commit/99fc7a38eb0ab4bc9bc977f61dd34f2377d1e4e3))
+
 ## [0.5.7](https://github.com/fmalk/take-home-api/compare/v0.5.6...v0.5.7) (2026-07-26)
 
 
