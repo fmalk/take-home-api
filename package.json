@@ -77,6 +77,7 @@
     }
   },
   "overrides": {
-    "@fastify/static": "10.1.2"
+    "@fastify/static": ">=10.1.2",
+    "brace-expansion": ">=5.0.8"
   }
 }
